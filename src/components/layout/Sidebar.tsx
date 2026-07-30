@@ -173,8 +173,14 @@ const MENU_STRUCTURE: MenuItem[] = [
     icon: Settings,
     children: [
       { label: "Facturación", href: "/configuracion/facturacion" },
-      { label: "Equipos y supervisión", href: "/configuracion/omnicanal-equipos" },
     ],
+  },
+  {
+    key: "agenda",
+    slug: "agenda",
+    label: "Agenda",
+    href: "/dashboard/agenda",
+    icon: Sparkles,
   },
   // Sitio publico Marilia Magazine
   {

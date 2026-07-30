@@ -13,6 +13,7 @@ interface Categoria {
   descripcion: string | null;
   parent_id: string | null;
   activo: boolean;
+  imagen_url: string | null;
 }
 
 export default function CategoriasProductosPage() {
@@ -21,11 +22,12 @@ export default function CategoriasProductosPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Form alta
   const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
   const [parentId, setParentId] = useState("");
   const [creating, setCreating] = useState(false);
+
+  const [editing, setEditing] = useState<Categoria | null>(null);
 
   async function load() {
     setLoading(true);
@@ -177,6 +179,7 @@ export default function CategoriasProductosPage() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
               <tr>
+                <th className="text-left px-4 py-2 w-16">Foto</th>
                 <th className="text-left px-4 py-2">Nombre</th>
                 <th className="text-left px-4 py-2">Código</th>
                 <th className="text-left px-4 py-2">Padre</th>
@@ -189,6 +192,14 @@ export default function CategoriasProductosPage() {
                 const parent = items.find((i) => i.id === c.parent_id);
                 return (
                   <tr key={c.id} className="border-t border-slate-100">
+                    <td className="px-4 py-2">
+                      {c.imagen_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={c.imagen_url} alt={c.nombre} className="h-10 w-10 rounded object-cover border border-slate-200" />
+                      ) : (
+                        <div className="h-10 w-10 rounded bg-slate-100 border border-slate-200" />
+                      )}
+                    </td>
                     <td className="px-4 py-2 font-medium">{c.nombre}</td>
                     <td className="px-4 py-2 text-gray-500">{c.codigo ?? "—"}</td>
                     <td className="px-4 py-2 text-gray-500">{parent?.nombre ?? "—"}</td>
@@ -199,7 +210,13 @@ export default function CategoriasProductosPage() {
                         <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Inactivo</span>
                       )}
                     </td>
-                    <td className="px-4 py-2 text-right">
+                    <td className="px-4 py-2 text-right space-x-3 whitespace-nowrap">
+                      <button
+                        onClick={() => setEditing(c)}
+                        className="text-xs text-sky-700 hover:text-sky-900 underline"
+                      >
+                        Editar
+                      </button>
                       <button
                         onClick={() => toggleActivo(c)}
                         className="text-xs text-sky-700 hover:text-sky-900 underline"
@@ -213,6 +230,159 @@ export default function CategoriasProductosPage() {
             </tbody>
           </table>
         )}
+      </div>
+
+      {editing && (
+        <EditarCategoriaModal
+          categoria={editing}
+          categorias={items}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditarCategoriaModal({
+  categoria,
+  categorias,
+  onClose,
+  onSaved,
+}: {
+  categoria: Categoria;
+  categorias: Categoria[];
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const [nombre, setNombre] = useState(categoria.nombre);
+  const [codigo, setCodigo] = useState(categoria.codigo ?? "");
+  const [parentId, setParentId] = useState(categoria.parent_id ?? "");
+  const [imgUrl, setImgUrl] = useState(categoria.imagen_url ?? "");
+  const [file, setFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  function onPick(f: File | null) {
+    setFile(f);
+    if (f) {
+      const url = URL.createObjectURL(f);
+      setPreview(url);
+    } else {
+      setPreview(null);
+    }
+  }
+
+  async function guardar() {
+    if (saving) return;
+    setSaving(true); setErr(null);
+    try {
+      const r = await fetch(`/api/inventario/categorias/${categoria.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          nombre: nombre.trim(),
+          codigo: codigo.trim() || null,
+          parent_id: parentId || null,
+        }),
+      });
+      const j = await r.json();
+      if (!r.ok || !j?.success) throw new Error(j?.error ?? "No se pudo actualizar.");
+
+      if (file) {
+        const fd = new FormData();
+        fd.append("file", file);
+        const up = await fetch(`/api/inventario/categorias/${categoria.id}/imagen`, {
+          method: "POST",
+          credentials: "include",
+          body: fd,
+        });
+        const jUp = await up.json();
+        if (!up.ok || !jUp?.success) throw new Error(jUp?.error ?? "No se pudo subir la imagen.");
+        setImgUrl(jUp.data?.imagen_url ?? "");
+      }
+      onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : "Error");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const posiblesPadres = categorias.filter((c) => c.id !== categoria.id && c.activo);
+
+  return (
+    <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full" onClick={(e) => e.stopPropagation()}>
+        <div className="p-5 border-b border-slate-100">
+          <h2 className="text-lg font-semibold text-slate-900">Editar categoría</h2>
+          <p className="text-xs text-slate-500 mt-1">Editá los datos y subí una foto (jpg / png / webp).</p>
+        </div>
+        <div className="p-5 space-y-4">
+          <div className="flex items-start gap-4">
+            <div className="shrink-0">
+              {preview || imgUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={preview ?? imgUrl} alt="preview" className="h-24 w-24 rounded-lg object-cover border border-slate-200" />
+              ) : (
+                <div className="h-24 w-24 rounded-lg bg-slate-100 border border-slate-200 flex items-center justify-center text-xs text-slate-400">
+                  sin foto
+                </div>
+              )}
+            </div>
+            <div className="flex-1">
+              <label className="block text-xs text-slate-600 mb-1">Foto</label>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(e) => onPick(e.target.files?.[0] ?? null)}
+                className="text-sm"
+              />
+              <p className="text-xs text-slate-400 mt-1">Se guarda al presionar &quot;Guardar cambios&quot;.</p>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Nombre</label>
+            <input
+              value={nombre}
+              onChange={(e) => setNombre(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Código</label>
+            <input
+              value={codigo}
+              onChange={(e) => setCodigo(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-slate-600 mb-1">Categoría padre</label>
+            <select
+              value={parentId}
+              onChange={(e) => setParentId(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
+            >
+              <option value="">— ninguna —</option>
+              {posiblesPadres.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </div>
+          {err && <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>}
+        </div>
+        <div className="p-4 border-t border-slate-100 flex justify-end gap-2">
+          <button onClick={onClose} disabled={saving} className="text-sm text-slate-600 px-4 py-2 rounded-lg hover:text-slate-900">
+            Cancelar
+          </button>
+          <button onClick={guardar} disabled={saving || !nombre.trim()} className="bg-[#4FAEB2] hover:bg-[#3F8E91] text-white text-sm font-semibold px-4 py-2 rounded-lg disabled:opacity-50">
+            {saving ? "Guardando..." : "Guardar cambios"}
+          </button>
+        </div>
       </div>
     </div>
   );

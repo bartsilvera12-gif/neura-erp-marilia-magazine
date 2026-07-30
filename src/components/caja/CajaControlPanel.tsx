@@ -287,24 +287,14 @@ export default function CajaControlPanel({ onStateChange }: Props) {
               </div>
               <div className="flex items-center gap-2">
                 {!enCierre && (
-                  <>
-                    <button
-                      type="button"
-                      onClick={() => { setTarget(cr); setModal("mov"); }}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold px-3 py-2 hover:border-[#4FAEB2] hover:text-[#3F8E91] hover:bg-[#4FAEB2]/5 transition-colors"
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      Movimiento
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setTarget(cr); setModal("en_cierre"); }}
-                      className="inline-flex items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 text-xs font-semibold px-3 py-2 hover:bg-amber-100 transition-colors"
-                    >
-                      <AlertTriangle className="h-3.5 w-3.5" />
-                      Pasar a cierre
-                    </button>
-                  </>
+                  <button
+                    type="button"
+                    onClick={() => { setTarget(cr); setModal("mov"); }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white text-slate-700 text-xs font-semibold px-3 py-2 hover:border-[#4FAEB2] hover:text-[#3F8E91] hover:bg-[#4FAEB2]/5 transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Movimiento
+                  </button>
                 )}
                 <button
                   type="button"
@@ -565,25 +555,15 @@ function ModalAbrir({
   numeroSugerido: number;
   numerosOcupados: number[];
 }) {
-  const [modo, setModo] = useState<"arqueo" | "monto">("arqueo");
   const [monto, setMonto] = useState("0");
-  const [cant, setCant] = useState<ArqueoCantidades>(arqueoVacio());
   const [obs, setObs] = useState("");
-  const [numero, setNumero] = useState(numeroSugerido);
+  const numero = numeroSugerido;
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(error);
-  const totalArq = totalArqueo(cant);
   async function submit() {
-    if (numerosOcupados.includes(numero)) {
-      setErr(`La Caja ${numero} ya está activa. Elegí otro número.`);
-      return;
-    }
     let montoFinal: number;
-    let arqueo: ArqueoItem[] | null = null;
-    if (modo === "arqueo") {
-      arqueo = cantidadesAArqueo(cant);
-      montoFinal = totalArq;
-    } else {
+    const arqueo: null = null;
+    {
       const n = Number(monto);
       if (!Number.isFinite(n) || n < 0) {
         setErr("Ingresá un monto válido.");
@@ -600,69 +580,26 @@ function ModalAbrir({
       setBusy(false);
     }
   }
-  // Opciones de caja: Caja 1 y Caja 2, deshabilitando las ya activas.
-  const opciones = [1, 2];
   return (
     <ModalBase
       title="Abrir caja"
-      subtitle="Elegí el número de caja y cargá el efectivo inicial del turno."
+      subtitle="Cargá el efectivo inicial del turno."
       onClose={busy ? () => {} : onClose}
-      maxWidthClass={modo === "arqueo" ? "max-w-2xl" : "max-w-md"}
+      maxWidthClass="max-w-md"
     >
       <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-            Número de caja
+            Monto inicial (Gs.)
           </label>
-          <div className="flex flex-wrap gap-2">
-            {opciones.map((n) => {
-              const ocupada = numerosOcupados.includes(n);
-              const sel = numero === n;
-              return (
-                <button
-                  key={n}
-                  type="button"
-                  disabled={ocupada}
-                  onClick={() => setNumero(n)}
-                  className={`rounded-lg border-2 px-3 py-1.5 text-sm font-bold transition-colors ${
-                    ocupada ? "border-slate-100 bg-slate-50 text-slate-300 cursor-not-allowed"
-                    : sel ? "border-[#4FAEB2] bg-[#4FAEB2] text-white"
-                    : "border-slate-200 bg-white text-slate-600 hover:bg-slate-50"
-                  }`}
-                >
-                  Caja {n}
-                </button>
-              );
-            })}
-          </div>
+          <MontoInput
+            value={monto}
+            onChange={(n) => setMonto(String(n))}
+            decimals={false}
+            autoFocus
+            className="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm font-semibold tabular-nums focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20 outline-none"
+          />
         </div>
-
-        <ModoArqueoToggle modo={modo} onChange={setModo} />
-
-        {modo === "arqueo" ? (
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Conteo de efectivo inicial
-            </label>
-            <ArqueoDenominaciones value={cant} onChange={setCant} disabled={busy} />
-            <p className="mt-1.5 text-[11px] text-slate-400">
-              El saldo inicial se calcula automáticamente desde el conteo: {fmtGs(totalArq)}.
-            </p>
-          </div>
-        ) : (
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Monto inicial (Gs.)
-            </label>
-            <MontoInput
-              value={monto}
-              onChange={(n) => setMonto(String(n))}
-              decimals={false}
-              autoFocus
-              className="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm font-semibold tabular-nums focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20 outline-none"
-            />
-          </div>
-        )}
 
         <div>
           <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
@@ -739,28 +676,23 @@ function ModalCerrar({
   onClose: () => void;
   onConfirm: (monto: number, obs: string | null, arqueo: ArqueoItem[] | null) => Promise<void>;
 }) {
-  const [modo, setModo] = useState<"arqueo" | "monto">("arqueo");
   const [monto, setMonto] = useState(String(Math.round(resumen.efectivo_esperado)));
-  const [cant, setCant] = useState<ArqueoCantidades>(arqueoVacio());
   const [obs, setObs] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const esperado = Math.round(resumen.efectivo_esperado);
-  const contado = modo === "arqueo" ? totalArqueo(cant) : Number(monto) || 0;
+  const contado = Number(monto) || 0;
   const diferencia = contado - esperado;
 
   async function submit() {
-    let arqueo: ArqueoItem[] | null = null;
-    if (modo === "arqueo") {
-      arqueo = cantidadesAArqueo(cant);
-    } else if (!Number.isFinite(contado) || contado < 0) {
+    if (!Number.isFinite(contado) || contado < 0) {
       setErr("Ingresá un monto válido.");
       return;
     }
     setBusy(true);
     setErr(null);
     try {
-      await onConfirm(contado, obs.trim() || null, arqueo);
+      await onConfirm(contado, obs.trim() || null, null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Error");
       setBusy(false);
@@ -772,7 +704,7 @@ function ModalCerrar({
       title="Cerrar caja"
       subtitle="Contá el efectivo en mano. El sistema calcula la diferencia."
       onClose={busy ? () => {} : onClose}
-      maxWidthClass={modo === "arqueo" ? "max-w-2xl" : "max-w-md"}
+      maxWidthClass="max-w-md"
     >
       <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
         {/* Resumen del arqueo */}
@@ -804,29 +736,18 @@ function ModalCerrar({
           </div>
         </div>
 
-        <ModoArqueoToggle modo={modo} onChange={setModo} />
-
-        {modo === "arqueo" ? (
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Conteo del efectivo en mano
-            </label>
-            <ArqueoDenominaciones value={cant} onChange={setCant} disabled={busy} />
-          </div>
-        ) : (
-          <div>
-            <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
-              Efectivo contado (Gs.)
-            </label>
-            <MontoInput
-              value={monto}
-              onChange={(n) => setMonto(String(n))}
-              decimals={false}
-              autoFocus
-              className="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm font-semibold tabular-nums focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20 outline-none"
-            />
-          </div>
-        )}
+        <div>
+          <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+            Efectivo contado (Gs.)
+          </label>
+          <MontoInput
+            value={monto}
+            onChange={(n) => setMonto(String(n))}
+            decimals={false}
+            autoFocus
+            className="w-full rounded-lg border-2 border-slate-200 px-3 py-2 text-sm font-semibold tabular-nums focus:border-[#4FAEB2] focus:ring-2 focus:ring-[#4FAEB2]/20 outline-none"
+          />
+        </div>
 
         {/* Vista previa de diferencia */}
         <div
