@@ -31,20 +31,10 @@ export interface Producto {
   es_insumo?: boolean;
   /** Si false, no descuenta stock (ajustes/servicios). */
   controla_stock?: boolean;
-  /** Si true, aparece en la sección "Productos destacados" del sitio público. */
+  /** Si true, aparece marcado como destacado en el sitio público. */
   destacado?: boolean;
-  /** Si false, el producto NO aparece en el catálogo del sitio web público. */
+  /** Si false, el producto NO aparece en el sitio público. Default true. */
   visible_web?: boolean;
-  /** Si true, aparece en el banner "Ofertas de la semana" del home público (máx 3). */
-  oferta_semana_destacada?: boolean;
-  /** Descuento promocional: 'percentage' | 'fixed' | null. */
-  discount_type?: "percentage" | "fixed" | null;
-  /** Valor del descuento (% si percentage, Gs. si fixed). */
-  discount_value?: number | null;
-  /** Inicio de la ventana de oferta (ISO). null = sin restriccion. */
-  discount_starts_at?: string | null;
-  /** Fin de la ventana de oferta (ISO). null = sin restriccion. */
-  discount_ends_at?: string | null;
   /** Si false, no entra en valuación (combos/promos). */
   valorizado?: boolean;
   /** Unidad usada al comprar (ej. "Bolsa 25kg"). */

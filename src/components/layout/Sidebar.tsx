@@ -176,18 +176,6 @@ const MENU_STRUCTURE: MenuItem[] = [
       { label: "Equipos y supervisión", href: "/configuracion/omnicanal-equipos" },
     ],
   },
-  // Ofertas del home: modulo standalone para configurar el banner "Ofertas
-  // de la semana" del sitio publico (countdown + 3 productos destacados).
-  // La ruta sigue siendo /configuracion/ofertas-home; el slug es
-  // 'configuracion' para que herede el grant de modulo del admin sin tener
-  // que insertar una fila nueva en `modulos` para 'ofertas-home'.
-  {
-    key: "ofertas_home",
-    slug: "configuracion",
-    label: "Ofertas del home",
-    href: "/configuracion/ofertas-home",
-    icon: Sparkles,
-  },
   // Items ocultos en ferreteria (no aplican / duplicados):
   // - Planes: suscripciones, modelo SaaS.
   // - Gestion Clientes: duplicado de Clientes con vista distinta.
