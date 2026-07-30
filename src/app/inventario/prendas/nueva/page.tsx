@@ -72,6 +72,10 @@ export default function NuevaPrendaPage() {
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
+  // Fotos por color: colorId → { file, previewUrl }. Se aplican a TODAS
+  // las variantes del color después de crear la prenda.
+  const [fotoPorColor, setFotoPorColor] = useState<Record<string, { file: File; preview: string }>>({});
+
   useEffect(() => {
     let cancel = false;
     async function load(url: string) {
@@ -161,8 +165,48 @@ export default function NuevaPrendaPage() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.success) throw new Error(j?.error || `Error ${r.status} al crear la prenda.`);
-      setOkMsg(`Prenda creada: ${j.data.count} variante(s).`);
-      setTimeout(() => router.push("/inventario"), 1200);
+
+      // Subir fotos por color y aplicar a TODAS las variantes del color
+      const creadas = (j.data?.variantes as Array<{ id: string; sku: string }> | undefined) ?? [];
+      // Mapear color_id → array de variante IDs (matcheando por SKU→ variante local)
+      const varByColor: Record<string, string[]> = {};
+      variantes.forEach((v, idx) => {
+        const created = creadas[idx];
+        if (!created) return;
+        if (!varByColor[v.color_id]) varByColor[v.color_id] = [];
+        varByColor[v.color_id].push(created.id);
+      });
+
+      const colorFotoEntries = Object.entries(fotoPorColor);
+      if (colorFotoEntries.length > 0) {
+        setOkMsg(`Prenda creada: ${creadas.length} variante(s). Subiendo fotos…`);
+        for (const [colorId, { file }] of colorFotoEntries) {
+          const varIds = varByColor[colorId] || [];
+          if (varIds.length === 0) continue;
+          // Subir foto a la primera variante del color
+          const firstId = varIds[0];
+          const fd = new FormData();
+          fd.append("file", file);
+          const up = await fetch(`/api/productos/${firstId}/imagen`, { method: "POST", credentials: "include", body: fd });
+          const jUp = await up.json().catch(() => ({}));
+          const imagenUrl = jUp?.data?.imagen_url as string | undefined;
+          if (!imagenUrl) continue;
+          // Copiar la URL a las variantes restantes del mismo color
+          await Promise.all(
+            varIds.slice(1).map((vid) =>
+              fetch(`/api/productos/${vid}`, {
+                method: "PATCH",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ imagen_url: imagenUrl }),
+              })
+            )
+          );
+        }
+      }
+
+      setOkMsg(`Prenda creada: ${creadas.length} variante(s)${colorFotoEntries.length > 0 ? " con fotos" : ""}.`);
+      setTimeout(() => router.push("/inventario"), 1400);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar.");
     } finally {
@@ -250,6 +294,55 @@ export default function NuevaPrendaPage() {
               ))}
               {colores.length === 0 && <span className="text-xs text-gray-400">Sin colores cargados.</span>}
             </div>
+
+            {/* Fotos por color — aparecen al seleccionar un color */}
+            {selColores.size > 0 && (
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <p className="text-xs text-gray-500 mb-3">Foto por color <span className="text-gray-400">(opcional — se aplica a todas las tallas de ese color)</span></p>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                  {Array.from(selColores).map((cid) => {
+                    const col = colores.find((c) => c.id === cid);
+                    if (!col) return null;
+                    const asig = fotoPorColor[cid];
+                    return (
+                      <div key={cid} className="border border-slate-200 rounded-lg p-2 flex items-center gap-2">
+                        <label className="shrink-0 h-14 w-14 rounded-md border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center cursor-pointer overflow-hidden hover:bg-slate-100">
+                          {asig ? (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img src={asig.preview} alt={col.nombre} className="h-full w-full object-cover" />
+                          ) : (
+                            <span className="text-[10px] text-slate-400 text-center px-1">Subir foto</span>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/jpeg,image/png,image/webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const f = e.target.files?.[0];
+                              if (f) {
+                                setFotoPorColor((prev) => ({ ...prev, [cid]: { file: f, preview: URL.createObjectURL(f) } }));
+                              }
+                            }}
+                          />
+                        </label>
+                        <div className="min-w-0 flex-1">
+                          <div className="text-sm font-medium truncate">{col.nombre}</div>
+                          {asig && (
+                            <button
+                              type="button"
+                              onClick={() => setFotoPorColor((prev) => { const c = { ...prev }; delete c[cid]; return c; })}
+                              className="text-[11px] text-red-600 hover:underline"
+                            >
+                              Quitar foto
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
           </div>
           <div>
             <p className="text-xs text-gray-500 mb-2">Tallas</p>
