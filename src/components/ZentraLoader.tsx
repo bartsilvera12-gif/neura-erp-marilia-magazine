@@ -81,7 +81,7 @@ export function FerreteriaLoader(props: LoaderProps) {
         <svg
           className="ferro-svg h-[207px] w-[232px] sm:h-[257px] sm:w-[288px]"
           viewBox="0 0 280 250"
-          style={{ display: "block", overflow: "visible" }}
+          style={{ display: "none", overflow: "visible" }}
           aria-hidden="true"
         >
           <defs>

@@ -17,8 +17,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Ferretería República",
-  description: "Sistema de gestión Zentra — Ferretería República",
+  title: "Marilia Magazine",
+  description: "Sistema de gestión Zentra — Marilia Magazine",
 };
 
 export const viewport: Viewport = {
