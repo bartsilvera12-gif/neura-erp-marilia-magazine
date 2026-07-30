@@ -67,12 +67,12 @@ CREATE POLICY auth_all_productos ON mariliaerp.productos
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- Categorías: todo visible
-ALTER TABLE mariliaerp.categorias ENABLE ROW LEVEL SECURITY;
-DROP POLICY IF EXISTS anon_read_categorias ON mariliaerp.categorias;
-CREATE POLICY anon_read_categorias ON mariliaerp.categorias
+ALTER TABLE mariliaerp.categorias_productos ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS anon_read_categorias ON mariliaerp.categorias_productos;
+CREATE POLICY anon_read_categorias ON mariliaerp.categorias_productos
   FOR SELECT TO anon USING (true);
-DROP POLICY IF EXISTS auth_all_categorias ON mariliaerp.categorias;
-CREATE POLICY auth_all_categorias ON mariliaerp.categorias
+DROP POLICY IF EXISTS auth_all_categorias ON mariliaerp.categorias_productos;
+CREATE POLICY auth_all_categorias ON mariliaerp.categorias_productos
   FOR ALL TO authenticated USING (true) WITH CHECK (true);
 
 -- Shop the look

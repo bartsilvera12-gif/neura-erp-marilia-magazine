@@ -18,7 +18,7 @@ BEGIN
   END IF;
 
   -- ------------- Categorías -------------
-  INSERT INTO mariliaerp.categorias (empresa_id, nombre)
+  INSERT INTO mariliaerp.categorias_productos (empresa_id, nombre)
   VALUES
     (v_empresa, 'Mujer Vestidos'),    (v_empresa, 'Mujer Conjuntos'),
     (v_empresa, 'Mujer Blusas'),      (v_empresa, 'Mujer Camisas'),
@@ -39,7 +39,7 @@ BEGIN
   SELECT
     v_empresa, p.nombre, p.sku, p.costo, p.precio, 0, 0,
     'UNIDAD', 'CPP', p.sub, p.img,
-    (SELECT id FROM mariliaerp.categorias WHERE empresa_id = v_empresa AND lower(nombre) = lower(p.categoria) LIMIT 1),
+    (SELECT id FROM mariliaerp.categorias_productos WHERE empresa_id = v_empresa AND lower(nombre) = lower(p.categoria) LIMIT 1),
     true, p.destacado, true, true
   FROM (VALUES
     ('Vestido Aurelia',   'MM-P1',  516000,  1290000, 'Vestido midi en lino lavado',                'https://raw.githubusercontent.com/bartsilvera12-gif/marilia-magazine/main/uploads/mujer.webp',                    'Mujer Vestidos',    true),
@@ -73,7 +73,7 @@ BEGIN
 END $$;
 
 -- Verificación
-SELECT COUNT(*) AS categorias FROM mariliaerp.categorias WHERE empresa_id = (SELECT id FROM mariliaerp.empresas WHERE nombre_empresa = 'Marilia Magazine');
+SELECT COUNT(*) AS categorias FROM mariliaerp.categorias_productos WHERE empresa_id = (SELECT id FROM mariliaerp.empresas WHERE nombre_empresa = 'Marilia Magazine');
 SELECT COUNT(*) AS productos_visibles_web FROM mariliaerp.productos
   WHERE empresa_id = (SELECT id FROM mariliaerp.empresas WHERE nombre_empresa = 'Marilia Magazine')
     AND visible_web = true;
