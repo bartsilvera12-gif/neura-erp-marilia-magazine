@@ -124,6 +124,7 @@ export default function InventarioPage() {
 
             <thead>
               <tr className="bg-slate-50 text-slate-600 text-sm font-semibold">
+                <th className="py-3 pl-4 pr-3 font-medium w-16">Foto</th>
                 <th className="py-3 pr-4 font-medium">Nombre</th>
                 <th className="py-3 pr-4 font-medium">SKU</th>
                 <th className="py-3 pr-4 font-medium">Color</th>
@@ -131,10 +132,8 @@ export default function InventarioPage() {
                 <th className="py-3 pr-4 font-medium">Costo Prom.</th>
                 <th className="py-3 pr-4 font-medium">Precio Venta</th>
                 <th className="py-3 pr-4 font-medium text-center">Stock</th>
-                <th className="py-3 pr-4 font-medium text-center">Stock Mín.</th>
                 <th className="py-3 pr-4 font-medium">Unidad</th>
                 <th className="py-3 pr-4 font-medium">Ubicación</th>
-                <th className="py-3 pr-4 font-medium">Valuación</th>
                 <th className="py-3 pr-8 font-medium text-right">
                   <span title="(precio - costo) / precio × 100">Margen s/venta</span>
                 </th>
@@ -150,6 +149,16 @@ export default function InventarioPage() {
                 const margen = calcularMargenVenta(p.costo_promedio, p.precio_venta);
                 return (
                   <tr key={p.id} className="border-b border-slate-200 last:border-0 hover:bg-slate-50 transition-colors">
+                    <td className="py-3 pl-4 pr-3">
+                      {p.imagen_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={p.imagen_url} alt={p.nombre} className="h-12 w-12 rounded-md object-cover border border-slate-200" />
+                      ) : (
+                        <div className="h-12 w-12 rounded-md bg-slate-100 border border-slate-200 flex items-center justify-center text-[10px] text-slate-400">
+                          sin foto
+                        </div>
+                      )}
+                    </td>
                     <td className="py-4 pr-4 font-medium text-gray-800">{p.nombre}</td>
                     <td className="py-4 pr-4 text-gray-500 font-mono">{p.sku}</td>
                     <td className="py-4 pr-4 text-gray-600">{p.color_nombre ?? <span className="text-gray-300">—</span>}</td>
@@ -161,7 +170,6 @@ export default function InventarioPage() {
                         {p.stock_actual}
                       </span>
                     </td>
-                    <td className="py-4 pr-4 text-center text-gray-500">{p.stock_minimo}</td>
                     <td className="py-4 pr-4 text-gray-600">{p.unidad_medida}</td>
                     <td className="py-4 pr-4 text-gray-600 text-xs">
                       {p.ubicacion_principal_id
@@ -177,11 +185,6 @@ export default function InventarioPage() {
                             );
                           })()
                         : <span className="text-gray-300">—</span>}
-                    </td>
-                    <td className="py-4 pr-4">
-                      <span className={`px-2 py-1 rounded-full text-xs font-semibold ${metodoBadge[p.metodo_valuacion]}`}>
-                        {p.metodo_valuacion}
-                      </span>
                     </td>
                     <td className={`py-4 pr-8 text-right tabular-nums font-semibold ${margenColor(margen)}`}>
                       {margen.toFixed(2)}%
@@ -217,8 +220,9 @@ export default function InventarioPage() {
                     <td className="py-4 pl-2 pr-4 text-right">
                       <Link
                         href={`/inventario/${p.id}/editar`}
-                        className="text-sm text-gray-500 hover:text-gray-800 underline"
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#4FAEB2] hover:bg-[#3F8E91] text-white text-xs font-semibold px-3 py-1.5 transition-colors shadow-sm"
                       >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                         Editar
                       </Link>
                     </td>
