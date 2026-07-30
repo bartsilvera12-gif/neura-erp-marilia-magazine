@@ -138,6 +138,8 @@ export default function InventarioPage() {
                 <th className="py-3 pr-8 font-medium text-right">
                   <span title="(precio - costo) / precio × 100">Margen s/venta</span>
                 </th>
+                <th className="py-3 pr-3 font-medium text-center" title="Aparece marcado como destacado en el sitio">Destacado</th>
+                <th className="py-3 pr-3 font-medium text-center" title="Se muestra en el sitio público">Visible web</th>
                 <th className="py-3 pl-2 pr-4 font-medium text-right whitespace-nowrap">Acción</th>
               </tr>
             </thead>
@@ -183,6 +185,34 @@ export default function InventarioPage() {
                     </td>
                     <td className={`py-4 pr-8 text-right tabular-nums font-semibold ${margenColor(margen)}`}>
                       {margen.toFixed(2)}%
+                    </td>
+                    <td className="py-4 pr-3 text-center">
+                      <input
+                        type="checkbox"
+                        defaultChecked={p.destacado === true}
+                        onChange={async (e) => {
+                          await fetch(`/api/productos/${p.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({ destacado: e.target.checked }),
+                          });
+                        }}
+                      />
+                    </td>
+                    <td className="py-4 pr-3 text-center">
+                      <input
+                        type="checkbox"
+                        defaultChecked={p.visible_web !== false}
+                        onChange={async (e) => {
+                          await fetch(`/api/productos/${p.id}`, {
+                            method: "PATCH",
+                            headers: { "Content-Type": "application/json" },
+                            credentials: "include",
+                            body: JSON.stringify({ visible_web: e.target.checked }),
+                          });
+                        }}
+                      />
                     </td>
                     <td className="py-4 pl-2 pr-4 text-right">
                       <Link

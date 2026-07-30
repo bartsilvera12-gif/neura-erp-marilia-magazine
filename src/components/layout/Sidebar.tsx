@@ -176,6 +176,21 @@ const MENU_STRUCTURE: MenuItem[] = [
       { label: "Equipos y supervisión", href: "/configuracion/omnicanal-equipos" },
     ],
   },
+  // Sitio publico Marilia Magazine
+  {
+    key: "sitio_shop_the_look",
+    slug: "configuracion",
+    label: "Shop the look",
+    href: "/configuracion/shop-the-look",
+    icon: Sparkles,
+  },
+  {
+    key: "sitio_instagram",
+    slug: "configuracion",
+    label: "Instagram grid",
+    href: "/configuracion/instagram-grid",
+    icon: Sparkles,
+  },
   // Items ocultos en ferreteria (no aplican / duplicados):
   // - Planes: suscripciones, modelo SaaS.
   // - Gestion Clientes: duplicado de Clientes con vista distinta.
