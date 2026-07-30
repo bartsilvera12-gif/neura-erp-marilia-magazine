@@ -125,6 +125,7 @@ const MENU_STRUCTURE: MenuItem[] = [
   { key: "inventario", slug: "inventario", label: "Inventario", href: "/inventario", icon: Package, children: [
     { label: "Productos", href: "/inventario" },
     { label: "Movimientos", href: "/inventario/movimientos" },
+    { label: "Nueva prenda (con variantes)", href: "/inventario/prendas/nueva" },
     { label: "Categorías", href: "/inventario/categorias" },
     { label: "Depósitos / Ubicaciones", href: "/inventario/ubicaciones" },
   ]},
