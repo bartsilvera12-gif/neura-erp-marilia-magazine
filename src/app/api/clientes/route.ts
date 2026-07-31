@@ -338,24 +338,59 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const rowWithPlan =
-      planComercial ? { ...insertBase, plan_comercial_id: planComercial } : insertBase;
+    const rowWithPlan: Record<string, unknown> =
+      planComercial ? { ...insertBase, plan_comercial_id: planComercial } : { ...insertBase };
 
-    let { data, error } = await supabase.from("clientes").insert([rowWithPlan]).select().single();
+    /**
+     * Los tenants no comparten todas las columnas de `clientes` (este repo se
+     * derivo de otra instancia). Si PostgREST rechaza el insert porque una
+     * columna no existe en el schema, la sacamos y reintentamos en vez de
+     * devolver un 400 seco: los datos que si existen se guardan igual.
+     */
+    const columnaFaltante = (msg: string): string | null => {
+      const m = /Could not find the '([^']+)' column/i.exec(msg) ||
+        /column "?([a-z0-9_]+)"? of relation/i.exec(msg);
+      return m ? m[1] : null;
+    };
 
-    // Si falla con plan (columna sin migrar, caché PostgREST, FK, etc.), reintentar sin plan_comercial_id.
-    if (error && planComercial) {
-      const second = await supabase.from("clientes").insert([insertBase]).select().single();
-      if (!second.error) {
-        data = second.data;
+    const fila: Record<string, unknown> = { ...rowWithPlan };
+    const omitidas: string[] = [];
+    let data: Record<string, unknown> | null = null;
+    let error: { message?: string; code?: string; details?: string; hint?: string } | null = null;
+
+    // Tope de intentos: uno por columna opcional que podria faltar + el original.
+    for (let intento = 0; intento < 8; intento++) {
+      const res = await supabase.from("clientes").insert([fila]).select().single();
+      if (!res.error) {
+        data = res.data as Record<string, unknown>;
         error = null;
-      } else {
-        error = second.error;
+        break;
       }
+      error = res.error;
+      const col = columnaFaltante(res.error.message ?? "");
+      // Nunca sacamos las columnas sin las que la fila no tiene sentido.
+      if (!col || !(col in fila) || ["empresa_id", "nombre", "nombre_contacto"].includes(col)) break;
+      delete fila[col];
+      omitidas.push(col);
     }
 
-    if (error) {
-      return NextResponse.json(errorResponse(error.message), { status: 400 });
+    if (error || !data) {
+      const partes = [error?.message, error?.details, error?.hint].filter(Boolean);
+      const detalle = partes.join(" — ") || "El servidor rechazó el alta sin dar un motivo.";
+      console.error("[/api/clientes POST] insert falló", {
+        code: error?.code,
+        message: error?.message,
+        details: error?.details,
+        omitidas,
+      });
+      return NextResponse.json(
+        errorResponse(`No se pudo crear el cliente: ${detalle}${error?.code ? ` [${error.code}]` : ""}`),
+        { status: 400 }
+      );
+    }
+
+    if (omitidas.length > 0) {
+      console.warn("[/api/clientes POST] columnas ausentes en el schema, se omitieron:", omitidas);
     }
 
     await emitEvent(EVENT_TYPES.cliente_creado, { cliente_id: data.id, empresa: data.empresa });
