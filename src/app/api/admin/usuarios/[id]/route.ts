@@ -1,6 +1,5 @@
-import { createClient } from "@supabase/supabase-js";
-import { supabaseServiceRoleClientOptions } from "@/lib/supabase/schema";
 import { NextResponse } from "next/server";
+import { requireSuperAdmin, type ServiceRoleClient } from "@/lib/auth/require-super-admin";
 import {
   esRolAdminEmpresa,
   filterModuloIdsForEmpresa,
@@ -8,15 +7,8 @@ import {
 import { filterDashboardViewIdsForEmpresa } from "@/lib/dashboard/resolve-effective-dashboard-views";
 import { syncUsuarioDashboardViews } from "@/lib/dashboard/sync-usuario-dashboard-views";
 
-function getSupabase() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) throw new Error("Config no disponible");
-  return createClient(url, key, { ...supabaseServiceRoleClientOptions });
-}
-
 /** Obtiene el auth user id: usa auth_user_id si existe, sino busca por email en listUsers (con paginación). */
-async function getAuthUserId(supabase: ReturnType<typeof getSupabase>, usuario: { auth_user_id?: string | null; email?: string }) {
+async function getAuthUserId(supabase: ServiceRoleClient, usuario: { auth_user_id?: string | null; email?: string }) {
   if (usuario.auth_user_id) return usuario.auth_user_id;
   const emailBuscado = (usuario.email ?? "").trim().toLowerCase();
   if (!emailBuscado) return null;
@@ -33,12 +25,15 @@ async function getAuthUserId(supabase: ReturnType<typeof getSupabase>, usuario: 
 }
 
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireSuperAdmin(req);
+    if (!guard.ok) return guard.response;
+    const supabase = guard.supabase;
+
     const { id } = await params;
-    const supabase = getSupabase();
     const { data: usuario, error } = await supabase
       .from("usuarios")
       .select("id, nombre, email, telefono, fecha_nacimiento, rol, estado, created_at")
@@ -59,6 +54,10 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireSuperAdmin(req);
+    if (!guard.ok) return guard.response;
+    const supabase = guard.supabase;
+
     const { id } = await params;
     const body = await req.json();
     const {
@@ -71,8 +70,6 @@ export async function PATCH(
       dashboard_view_ids,
       default_dashboard_view_id,
     } = body;
-
-    const supabase = getSupabase();
 
     const { data: usuario, error: errGet } = await supabase
       .from("usuarios")

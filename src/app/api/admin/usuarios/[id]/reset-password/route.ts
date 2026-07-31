@@ -1,12 +1,21 @@
-import { createClient } from "@supabase/supabase-js";
-import { supabaseServiceRoleClientOptions } from "@/lib/supabase/schema";
 import { NextResponse } from "next/server";
+import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 
+/**
+ * POST /api/admin/usuarios/[id]/reset-password
+ *
+ * Cambia la contraseña de un usuario. Solo super admin: sin el guard bastaba
+ * con conocer el id de la fila para tomar control de cualquier cuenta.
+ */
 export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const guard = await requireSuperAdmin(req);
+    if (!guard.ok) return guard.response;
+    const supabase = guard.supabase;
+
     const { id } = await params;
     const body = await req.json();
     const { password } = body;
@@ -17,14 +26,6 @@ export async function POST(
         { status: 400 }
       );
     }
-
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) {
-      return NextResponse.json({ error: "Config no disponible" }, { status: 500 });
-    }
-
-    const supabase = createClient(url, key, { ...supabaseServiceRoleClientOptions });
 
     const { data: usuario, error: errGet } = await supabase
       .from("usuarios")

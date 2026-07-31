@@ -1,4 +1,3 @@
-import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { serializeUnknownError } from "@/lib/errors/serialize-unknown-error";
 import { clearBrowserEmpresaDataSchemaCache } from "@/lib/supabase/browser-data-client";
 import { usuarioEmailLookupVariants } from "@/lib/auth/usuario-email-variants";
@@ -39,25 +38,9 @@ export async function getSession() {
   return data.session;
 }
 
-export async function createUser(email: string, password: string) {
-  const res = await fetchWithSupabaseSession("/api/create-user", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password }),
-  });
-
-  const json = await res.json();
-
-  if (!res.ok) {
-    throw new Error(
-      typeof json.error === "string"
-        ? json.error
-        : json.error?.message || "Error creando usuario"
-    );
-  }
-
-  return json.user;
-}
+// createUser() y su ruta /api/create-user se eliminaron: no las llamaba nadie
+// y la ruta creaba usuarios de Auth con la service role sin pedir sesion.
+// El alta real de usuarios va por /api/empresas/usuarios/nuevo, que valida rol.
 
 export async function getCurrentUser(): Promise<CurrentUsuario | null> {
   const { data: { user } } = await supabase.auth.getUser();

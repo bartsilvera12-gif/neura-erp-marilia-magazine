@@ -1,18 +1,13 @@
-import { createClient } from "@supabase/supabase-js";
-import { supabaseServiceRoleClientOptions } from "@/lib/supabase/schema";
 import { NextResponse } from "next/server";
+import { requireSuperAdmin } from "@/lib/auth/require-super-admin";
 
-export async function GET() {
+/** GET /api/admin/empresas — listado completo de empresas. Solo super admin. */
+export async function GET(request: Request) {
   try {
-    const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-    if (!url || !key) {
-      return NextResponse.json({ error: "Config no disponible" }, { status: 500 });
-    }
+    const guard = await requireSuperAdmin(request);
+    if (!guard.ok) return guard.response;
 
-    const supabase = createClient(url, key, { ...supabaseServiceRoleClientOptions });
-
-    const { data, error } = await supabase
+    const { data, error } = await guard.supabase
       .from("empresas")
       .select("*")
       .order("created_at", { ascending: false });
