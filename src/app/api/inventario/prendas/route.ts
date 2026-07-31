@@ -151,7 +151,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(errorResponse(`Ya existe un producto con el mismo ${campo} en esta empresa. Revisá las variantes.`), { status: 409 });
     }
     console.error("[/api/inventario/prendas POST]", { schema, empresaId, message: e?.message, code: e?.code });
-    return NextResponse.json(errorResponse("No se pudo crear la prenda. Revisá los datos e intentá nuevamente."), { status: 500 });
+    const detalle = e?.message ? ` [${e.code || "?"}] ${e.message}` : "";
+    return NextResponse.json(errorResponse(`No se pudo crear la prenda.${detalle}`), { status: 500 });
   } finally {
     client.release();
   }
