@@ -185,6 +185,13 @@ const MENU_STRUCTURE: MenuItem[] = [
   },
   // Sitio publico Marilia Magazine
   {
+    key: "sitio_explorar_coleccion",
+    slug: "configuracion",
+    label: "Explorar la colección",
+    href: "/configuracion/explorar-coleccion",
+    icon: Sparkles,
+  },
+  {
     key: "sitio_shop_the_look",
     slug: "configuracion",
     label: "Shop the look",
