@@ -269,7 +269,7 @@ function LookModal({
     try {
       const fd = new FormData();
       fd.append("file", file);
-      if (borrador.id) fd.append("look_id", borrador.id);
+      if (borrador.id) fd.append("nombre", borrador.id);
       const r = await fetch("/api/sitio-admin/shop-the-look/imagen", {
         method: "POST",
         credentials: "include",
