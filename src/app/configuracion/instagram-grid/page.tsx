@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 interface Post {
   id: string;
@@ -20,6 +21,9 @@ export default function InstagramGridPage() {
   const [subiendo, setSubiendo] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  /** Foto pendiente de confirmar borrado (modal propio, no el confirm del navegador). */
+  const [aEliminar, setAEliminar] = useState<Post | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   async function cargar() {
     setLoading(true);
@@ -80,10 +84,19 @@ export default function InstagramGridPage() {
     }
   }
 
-  async function eliminar(id: string) {
-    if (!confirm("¿Eliminar esta foto de la grilla?")) return;
-    await fetch(`/api/sitio-admin/instagram/${id}`, { method: "DELETE", credentials: "include" });
-    cargar();
+  async function confirmarEliminar() {
+    if (!aEliminar || eliminando) return;
+    setEliminando(true);
+    try {
+      await fetch(`/api/sitio-admin/instagram/${aEliminar.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      setAEliminar(null);
+      cargar();
+    } finally {
+      setEliminando(false);
+    }
   }
 
   async function toggleActivo(post: Post) {
@@ -255,7 +268,7 @@ export default function InstagramGridPage() {
                       >
                         →
                       </button>
-                      <button onClick={() => eliminar(post.id)} className="text-xs text-red-600 hover:underline ml-1">
+                      <button onClick={() => setAEliminar(post)} className="text-xs text-red-600 hover:underline ml-1">
                         Eliminar
                       </button>
                     </div>
@@ -266,6 +279,24 @@ export default function InstagramGridPage() {
           </div>
         </>
       )}
+
+      <ConfirmModal
+        open={aEliminar !== null}
+        title="Eliminar foto"
+        tone="danger"
+        confirmLabel="Eliminar"
+        loading={eliminando}
+        onCancel={() => { if (!eliminando) setAEliminar(null); }}
+        onConfirm={confirmarEliminar}
+        message={
+          <>
+            La foto sale de la grilla @marilia.magazine del sitio. Si solo querés esconderla
+            por un tiempo, destildá <strong>Visible</strong> en vez de borrarla.
+            <br />
+            Esta acción no se puede deshacer.
+          </>
+        }
+      />
 
       <div className="mt-8 text-xs text-slate-400">
         <Link href="/configuracion" className="underline">← Volver a configuración</Link>

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import ConfirmModal from "@/components/ui/ConfirmModal";
 
 interface Producto {
   id: string;
@@ -47,6 +48,9 @@ export default function ShopTheLookPage() {
   const [loading, setLoading] = useState(true);
   const [msg, setMsg] = useState<string | null>(null);
   const [editando, setEditando] = useState<Borrador | null>(null);
+  /** Look pendiente de confirmar borrado (modal propio, no el confirm del navegador). */
+  const [aEliminar, setAEliminar] = useState<Look | null>(null);
+  const [eliminando, setEliminando] = useState(false);
 
   async function cargar() {
     setLoading(true);
@@ -95,11 +99,20 @@ export default function ShopTheLookPage() {
     });
   }
 
-  async function eliminarLook(id: string) {
-    if (!confirm("¿Eliminar este look? Se borra también del sitio.")) return;
-    await fetch(`/api/sitio-admin/shop-the-look/${id}`, { method: "DELETE", credentials: "include" });
-    setMsg("Look eliminado.");
-    cargar();
+  async function confirmarEliminar() {
+    if (!aEliminar || eliminando) return;
+    setEliminando(true);
+    try {
+      await fetch(`/api/sitio-admin/shop-the-look/${aEliminar.id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      setMsg(`Look "${aEliminar.titulo}" eliminado.`);
+      setAEliminar(null);
+      cargar();
+    } finally {
+      setEliminando(false);
+    }
   }
 
   async function toggleActivo(look: Look, activo: boolean) {
@@ -177,7 +190,7 @@ export default function ShopTheLookPage() {
                   </label>
                   <div className="flex items-center gap-3">
                     <button onClick={() => editarLook(look)} className="text-xs text-sky-700 hover:underline">Editar</button>
-                    <button onClick={() => eliminarLook(look.id)} className="text-xs text-red-600 hover:underline">Eliminar</button>
+                    <button onClick={() => setAEliminar(look)} className="text-xs text-red-600 hover:underline">Eliminar</button>
                   </div>
                 </div>
               </div>
@@ -189,6 +202,24 @@ export default function ShopTheLookPage() {
       <div className="mt-8 text-xs text-slate-400">
         <Link href="/configuracion" className="underline">← Volver a configuración</Link>
       </div>
+
+      <ConfirmModal
+        open={aEliminar !== null}
+        title="Eliminar look"
+        tone="danger"
+        confirmLabel="Eliminar"
+        loading={eliminando}
+        onCancel={() => { if (!eliminando) setAEliminar(null); }}
+        onConfirm={confirmarEliminar}
+        message={
+          <>
+            Se borra <strong>{aEliminar?.titulo}</strong> y deja de mostrarse en la sección
+            &quot;El look completo&quot; del sitio. Las prendas del look no se tocan.
+            <br />
+            Esta acción no se puede deshacer.
+          </>
+        }
+      />
 
       {editando && (
         <LookModal
