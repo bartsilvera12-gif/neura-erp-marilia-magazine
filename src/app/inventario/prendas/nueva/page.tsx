@@ -182,16 +182,17 @@ export default function NuevaPrendaPage() {
           fd.append("file", file);
           const up = await fetch(`/api/productos/${firstId}/imagen`, { method: "POST", credentials: "include", body: fd });
           const jUp = await up.json().catch(() => ({}));
-          const imagenUrl = jUp?.data?.imagen_url as string | undefined;
-          if (!imagenUrl) continue;
-          // Copiar la URL a las variantes restantes del mismo color
+          const imagenPath = jUp?.data?.imagen_path as string | undefined;
+          if (!imagenPath) continue;
+          // Copiar el imagen_path a las variantes restantes del mismo color
+          // (todas apuntan al mismo archivo en Storage; el listado firma el URL al vuelo).
           await Promise.all(
             varIds.slice(1).map((vid) =>
               fetch(`/api/productos/${vid}`, {
                 method: "PATCH",
                 headers: { "Content-Type": "application/json" },
                 credentials: "include",
-                body: JSON.stringify({ imagen_url: imagenUrl }),
+                body: JSON.stringify({ imagen_path: imagenPath, imagen_url: null }),
               })
             )
           );

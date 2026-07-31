@@ -5,6 +5,7 @@ import { API_ERRORS } from "@/lib/api/errors";
 import { normalizeUpperText, normalizeUpperCodigoBarras } from "@/lib/text/normalize";
 import { applyTokenSearch } from "@/lib/productos/token-search";
 import type { AppSupabaseClient } from "@/lib/supabase/schema";
+import { resolverImagenesPublicas } from "@/lib/inventario/imagen-storage";
 
 /**
  * GET/POST de productos via PostgREST (sin pool PG directo) — compatible Hostinger.
@@ -120,7 +121,11 @@ export async function GET(request: NextRequest) {
 
     const { data, error, count } = await query;
     if (error) throw new Error(error.message);
-    const rows = ((data ?? []) as unknown as Record<string, unknown>[]).map(rowToApi);
+    // Firma en lote los imagen_path que aun no tienen imagen_url resuelto
+    // (uploads desde ERP guardan imagen_path en Storage privado).
+    const raw = ((data ?? []) as unknown as Array<{ imagen_url?: string | null; imagen_path?: string | null } & Record<string, unknown>>);
+    const resolved = await resolverImagenesPublicas(ctx.supabase, raw);
+    const rows = (resolved as unknown as Record<string, unknown>[]).map(rowToApi);
     return NextResponse.json(
       successResponse({
         productos: rows,
