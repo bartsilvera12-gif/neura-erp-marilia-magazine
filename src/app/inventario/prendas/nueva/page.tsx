@@ -48,6 +48,9 @@ export default function NuevaPrendaPage() {
   const [proveedorId, setProveedorId] = useState("");
   const [ubicacionId, setUbicacionId] = useState("");
   const [estado, setEstado] = useState<"activo" | "agotado" | "discontinuado">("activo");
+  // Publicado en el catálogo web (aplica a todas las variantes generadas).
+  const [visibleWeb, setVisibleWeb] = useState(true);
+  const [destacado, setDestacado] = useState(false);
 
   // Colores y tallas se escriben como texto separado por coma.
   // Ej: "Negro, Blanco, Rosa" y "S, M, L, XL"
@@ -140,6 +143,8 @@ export default function NuevaPrendaPage() {
           nombre, categoria_id: categoriaId || null, tipo_corte: tipoCorte,
           material: material || null, temporada: temporada || null, marca: marca || null,
           descripcion: descripcion || null, proveedor_principal_id: proveedorId || null, estado,
+          visible_web: visibleWeb,
+          destacado: destacado && visibleWeb,
         },
         variantes: variantes.map((v) => ({
           nombre: `${nombre} - ${v.color_nombre} - ${v.talla_nombre}`,
@@ -270,6 +275,37 @@ export default function NuevaPrendaPage() {
             </select>
           </div>
           <div className="md:col-span-3"><label className="block text-xs text-gray-500 mb-1">Descripción</label><textarea className={inputCls} rows={2} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></div>
+          <div className="md:col-span-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={visibleWeb}
+                onChange={(e) => setVisibleWeb(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#4FAEB2]"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-700">Activo en la web</span>
+                <span className="block text-xs text-gray-500">
+                  Publica todas las variantes generadas en el catálogo público del sitio.
+                </span>
+              </span>
+            </label>
+            <label className={`mt-3 flex items-start gap-3 ${visibleWeb ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
+              <input
+                type="checkbox"
+                checked={destacado && visibleWeb}
+                disabled={!visibleWeb}
+                onChange={(e) => setDestacado(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#4FAEB2]"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-700">Destacado en la web</span>
+                <span className="block text-xs text-gray-500">
+                  Lo muestra en las secciones destacadas del sitio, además del catálogo.
+                </span>
+              </span>
+            </label>
+          </div>
         </div>
       </div>
 

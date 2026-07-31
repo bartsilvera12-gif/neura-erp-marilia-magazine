@@ -14,6 +14,10 @@ interface Categoria {
   parent_id: string | null;
   activo: boolean;
   imagen_url: string | null;
+  mostrar_home: boolean;
+  orden_home: number;
+  subtitulo_home: string | null;
+  link_home: string | null;
 }
 
 export default function CategoriasProductosPage() {
@@ -183,6 +187,7 @@ export default function CategoriasProductosPage() {
                 <th className="text-left px-4 py-2">Nombre</th>
                 <th className="text-left px-4 py-2">Código</th>
                 <th className="text-left px-4 py-2">Padre</th>
+                <th className="text-left px-4 py-2">Home del sitio</th>
                 <th className="text-left px-4 py-2">Estado</th>
                 <th className="px-4 py-2"></th>
               </tr>
@@ -203,6 +208,18 @@ export default function CategoriasProductosPage() {
                     <td className="px-4 py-2 font-medium">{c.nombre}</td>
                     <td className="px-4 py-2 text-gray-500">{c.codigo ?? "—"}</td>
                     <td className="px-4 py-2 text-gray-500">{parent?.nombre ?? "—"}</td>
+                    <td className="px-4 py-2">
+                      {c.mostrar_home ? (
+                        <span
+                          className={`text-xs px-2 py-0.5 rounded ${c.imagen_url ? "bg-sky-100 text-sky-700" : "bg-amber-100 text-amber-800"}`}
+                          title={c.imagen_url ? undefined : "Sin foto el tile no se muestra en el sitio."}
+                        >
+                          {c.imagen_url ? `Tile #${c.orden_home}` : "Falta foto"}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
                     <td className="px-4 py-2">
                       {c.activo ? (
                         <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Activo</span>
@@ -259,6 +276,10 @@ function EditarCategoriaModal({
   const [codigo, setCodigo] = useState(categoria.codigo ?? "");
   const [parentId, setParentId] = useState(categoria.parent_id ?? "");
   const [imgUrl, setImgUrl] = useState(categoria.imagen_url ?? "");
+  const [mostrarHome, setMostrarHome] = useState(categoria.mostrar_home === true);
+  const [ordenHome, setOrdenHome] = useState(String(categoria.orden_home ?? 0));
+  const [subtituloHome, setSubtituloHome] = useState(categoria.subtitulo_home ?? "");
+  const [linkHome, setLinkHome] = useState(categoria.link_home ?? "");
   const [file, setFile] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -286,6 +307,10 @@ function EditarCategoriaModal({
           nombre: nombre.trim(),
           codigo: codigo.trim() || null,
           parent_id: parentId || null,
+          mostrar_home: mostrarHome,
+          orden_home: Number(ordenHome) || 0,
+          subtitulo_home: subtituloHome.trim() || null,
+          link_home: linkHome.trim() || null,
         }),
       });
       const j = await r.json();
@@ -373,6 +398,66 @@ function EditarCategoriaModal({
               ))}
             </select>
           </div>
+          {/* Tile del home del sitio público */}
+          <div className="border-t border-slate-100 pt-4 space-y-3">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={mostrarHome}
+                onChange={(e) => setMostrarHome(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-[#4FAEB2]"
+              />
+              <span>
+                <span className="block text-sm font-medium text-slate-700">Mostrar en el home del sitio</span>
+                <span className="block text-xs text-slate-500">
+                  Aparece como tile en la sección &quot;Encuentra tu estilo&quot;. Necesita foto.
+                </span>
+              </span>
+            </label>
+            {mostrarHome && (
+              <div className="space-y-3 pl-7">
+                {!(preview || imgUrl) && (
+                  <p className="text-xs text-amber-800 bg-amber-50 border border-amber-200 rounded px-3 py-2">
+                    Subile una foto arriba: sin imagen el tile no se muestra en el sitio.
+                  </p>
+                )}
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <label className="block text-xs text-slate-600 mb-1">Orden</label>
+                    <input
+                      type="number"
+                      value={ordenHome}
+                      onChange={(e) => setOrdenHome(e.target.value)}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="col-span-2">
+                    <label className="block text-xs text-slate-600 mb-1">Subtítulo (opcional)</label>
+                    <input
+                      value={subtituloHome}
+                      onChange={(e) => setSubtituloHome(e.target.value)}
+                      placeholder="Ej: Otoño 2026"
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+                    />
+                  </div>
+                </div>
+                <div>
+                  <label className="block text-xs text-slate-600 mb-1">Link del tile (opcional)</label>
+                  <input
+                    value={linkHome}
+                    onChange={(e) => setLinkHome(e.target.value)}
+                    placeholder="Vacío = catálogo filtrado por esta categoría"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                  />
+                  <p className="text-xs text-slate-400 mt-1">
+                    Para un tile tipo &quot;Nueva colección&quot; que va al catálogo entero, poné{" "}
+                    <code className="bg-slate-100 px-1 rounded">./Catalogo.dc.html</code>.
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
+
           {err && <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">{err}</p>}
         </div>
         <div className="p-4 border-t border-slate-100 flex justify-end gap-2">

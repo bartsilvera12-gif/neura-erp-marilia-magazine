@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { RotateCcw, Printer, FileText, Truck, ChevronDown, Wallet, ClipboardList } from "lucide-react";
+import { RotateCcw, Printer, FileText, Truck, ChevronDown, ClipboardList } from "lucide-react";
 import EdgeScrollArea from "@/components/ui/EdgeScrollArea";
 import { FancySelect } from "@/components/ui/FancySelect";
 import MobileFab from "@/components/ui/MobileFab";
@@ -107,7 +107,6 @@ export default function VentasPage() {
   const [detalle,    setDetalle]    = useState<Venta | null>(null);
   // Para no distraer al cajero: caja e historial de ventas arrancan colapsados;
   // solo "Pedidos por cobrar" queda siempre visible.
-  const [showCajas,   setShowCajas]   = useState(false);
   const [showOrdenes, setShowOrdenes] = useState(false);
 
   // Feature flag server-side: sin él, la UI de devoluciones no se muestra.
@@ -184,23 +183,7 @@ export default function VentasPage() {
         </div>
       </div>
 
-      {/* Información de caja — colapsada por defecto para no distraer al cajero. */}
-      <div>
-        <button
-          type="button"
-          onClick={() => setShowCajas((v) => !v)}
-          className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-4 py-3 text-left shadow-sm ring-1 ring-[#4FAEB2]/15 transition-colors hover:bg-slate-50"
-          aria-expanded={showCajas}
-        >
-          <span className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <Wallet className="h-4 w-4 text-[#4FAEB2]" />
-            Información de caja
-            <span className="text-xs font-normal text-slate-400">{showCajas ? "(tocá para ocultar)" : "(tocá para ver)"}</span>
-          </span>
-          <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${showCajas ? "rotate-180" : ""}`} />
-        </button>
-        {showCajas && <div className="mt-3"><CajaControlPanel /></div>}
-      </div>
+      <CajaControlPanel />
 
       <PedidosConsultaPendientes />
       <PedidosPendientesCaja />

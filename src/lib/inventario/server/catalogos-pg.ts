@@ -30,7 +30,18 @@ export interface CategoriaProductoRow {
   activo: boolean;
   created_at: string;
   updated_at: string;
+  // Sitio publico: tiles del home ("Encuentra tu estilo").
+  imagen_url: string | null;
+  mostrar_home: boolean;
+  orden_home: number;
+  subtitulo_home: string | null;
+  link_home: string | null;
 }
+
+/** Columnas devueltas por list/insert/update. Una sola fuente de verdad. */
+const CATEGORIA_COLS =
+  "id, empresa_id, nombre, codigo, descripcion, parent_id, activo, created_at, updated_at, " +
+  "imagen_url, mostrar_home, orden_home, subtitulo_home, link_home";
 
 /**
  * Auto-sync: importa a categorias_productos cualquier rubro de proveedor
@@ -90,7 +101,7 @@ export async function listCategoriasProducto(
   const where = ["empresa_id = $1::uuid"];
   if (opts.soloActivas !== false) where.push("activo = true");
   const { rows } = await p.query<CategoriaProductoRow>(
-    `SELECT id, empresa_id, nombre, codigo, descripcion, parent_id, activo, created_at, updated_at
+    `SELECT ${CATEGORIA_COLS}
        FROM ${t}
       WHERE ${where.join(" AND ")}
       ORDER BY nombre`,
@@ -109,7 +120,7 @@ export async function insertCategoriaProducto(
   const { rows } = await pool().query<CategoriaProductoRow>(
     `INSERT INTO ${t} (empresa_id, nombre, codigo, descripcion, parent_id, activo)
      VALUES ($1::uuid, $2, $3, $4, $5, COALESCE($6::boolean, true))
-     RETURNING id, empresa_id, nombre, codigo, descripcion, parent_id, activo, created_at, updated_at`,
+     RETURNING ${CATEGORIA_COLS}`,
     [
       empresaId,
       d.nombre.trim(),
@@ -126,7 +137,17 @@ export async function updateCategoriaProducto(
   schemaRaw: string,
   empresaId: string,
   id: string,
-  d: Partial<{ nombre: string; codigo: string | null; descripcion: string | null; parent_id: string | null; activo: boolean }>
+  d: Partial<{
+    nombre: string;
+    codigo: string | null;
+    descripcion: string | null;
+    parent_id: string | null;
+    activo: boolean;
+    mostrar_home: boolean;
+    orden_home: number;
+    subtitulo_home: string | null;
+    link_home: string | null;
+  }>
 ): Promise<CategoriaProductoRow | null> {
   const schema = assertAllowedChatDataSchema(schemaRaw);
   const t = quoteSchemaTable(schema, "categorias_productos");
@@ -138,13 +159,17 @@ export async function updateCategoriaProducto(
   if (d.descripcion !== undefined) { sets.push(`descripcion = $${i++}`); params.push(d.descripcion?.trim() || null); }
   if (d.parent_id !== undefined) { sets.push(`parent_id = $${i++}`); params.push(d.parent_id || null); }
   if (d.activo !== undefined) { sets.push(`activo = $${i++}::boolean`); params.push(d.activo); }
+  if (d.mostrar_home !== undefined) { sets.push(`mostrar_home = $${i++}::boolean`); params.push(d.mostrar_home); }
+  if (d.orden_home !== undefined) { sets.push(`orden_home = $${i++}::int`); params.push(d.orden_home); }
+  if (d.subtitulo_home !== undefined) { sets.push(`subtitulo_home = $${i++}`); params.push(d.subtitulo_home?.trim() || null); }
+  if (d.link_home !== undefined) { sets.push(`link_home = $${i++}`); params.push(d.link_home?.trim() || null); }
   if (sets.length === 0) return null;
   sets.push("updated_at = now()");
   params.push(id, empresaId);
   const { rows } = await pool().query<CategoriaProductoRow>(
     `UPDATE ${t} SET ${sets.join(", ")}
       WHERE id = $${i++}::uuid AND empresa_id = $${i}::uuid
-      RETURNING id, empresa_id, nombre, codigo, descripcion, parent_id, activo, created_at, updated_at`,
+      RETURNING ${CATEGORIA_COLS}`,
     params
   );
   return rows[0] ?? null;

@@ -67,6 +67,11 @@ export default function NuevoItemPage() {
   const [codigoBarras, setCodigoBarras] = useState("");
   const [proveedorId, setProveedorId] = useState<string | null>(null);
   const [ubicacionId, setUbicacionId] = useState<string | null>(null);
+  // Publicado en el catálogo web. Default true = mismo default que la columna
+  // `visible_web` en la base, y coincide con el check de la lista de inventario.
+  const [visibleWeb, setVisibleWeb] = useState(true);
+  // Destacado: lo levanta el sitio para la sección de piezas destacadas.
+  const [destacado, setDestacado] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -230,6 +235,9 @@ export default function NuevoItemPage() {
           tipo_corte: tipoCorte,
           proveedor_principal_id: proveedorId || null,
           estado: "activo",
+          visible_web: visibleWeb,
+          // Sin publicar no tiene sentido destacar: el sitio nunca lo mostraría.
+          destacado: destacado && visibleWeb,
         },
         variantes: [{
           nombre: nombreVar,
@@ -480,6 +488,41 @@ export default function NuevoItemPage() {
               {imagenError && <p className="mt-1.5 text-xs text-red-600">{imagenError}</p>}
             </div>
           </div>
+        </div>
+
+        {/* Publicación en la web */}
+        <div className="border-t border-slate-100 pt-6 space-y-3">
+          <p className="text-xs text-gray-400 uppercase tracking-wide font-semibold">Sitio web</p>
+          <label className="flex items-start gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={visibleWeb}
+              onChange={(e) => setVisibleWeb(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#4FAEB2]"
+            />
+            <span>
+              <span className="block text-sm font-medium text-slate-700">Activo en la web</span>
+              <span className="block text-xs text-slate-400">
+                Si está tildado, el ítem aparece en el catálogo público del sitio. Podés cambiarlo
+                después desde la lista de inventario.
+              </span>
+            </span>
+          </label>
+          <label className={`flex items-start gap-3 ${visibleWeb ? "cursor-pointer" : "cursor-not-allowed opacity-50"}`}>
+            <input
+              type="checkbox"
+              checked={destacado && visibleWeb}
+              disabled={!visibleWeb}
+              onChange={(e) => setDestacado(e.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-[#4FAEB2]"
+            />
+            <span>
+              <span className="block text-sm font-medium text-slate-700">Destacado en la web</span>
+              <span className="block text-xs text-slate-400">
+                Lo muestra en las secciones destacadas del sitio (además del catálogo).
+              </span>
+            </span>
+          </label>
         </div>
 
         {/* Acciones */}

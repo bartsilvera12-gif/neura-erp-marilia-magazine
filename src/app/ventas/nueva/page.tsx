@@ -970,14 +970,11 @@ export default function NuevaVentaPage() {
       // SOLO si la venta la genera (cliente con usa_nota_remision o toggle activo).
       const v = resultado.venta;
       const generaNota = v.genera_nota_remision === true || !!v.nota_remision_numero;
-      const ticketUrl = `/api/ventas/${v.id}/ticket?mode=comandas&auto=1`;
-      const facturaUrl = `/api/ventas/${v.id}/factura?auto=1`;
+      const ticketUrl = `/api/ventas/${v.id}/ticket?auto=1`;
       const remisionUrl = `/api/ventas/${v.id}/ticket?tipo=remision&auto=1`;
-      // TODAS las ventas se facturan: siempre abrimos la FACTURA. Sin cliente
-      // sale a nombre de "Consumidor Final". El ticket interno queda disponible
-      // desde el listado si hace falta.
-      void ticketUrl;
-      const docUrl = facturaUrl;
+      // Al cobrar se imprime el TICKET normal (no fiscal). La factura sigue
+      // disponible a demanda desde el listado de ventas y el panel post-venta.
+      const docUrl = ticketUrl;
       // Se reutiliza la ventana abierta durante el clic. Si el navegador la
       // bloqueó igual, se intenta abrir ahora como último recurso.
       if (ventanaDoc && !ventanaDoc.closed) {
@@ -1913,7 +1910,7 @@ export default function NuevaVentaPage() {
 
             <div className="grid grid-cols-1 gap-2">
               <a
-                href={`/api/ventas/${postVenta.id}/ticket?mode=comandas&auto=1`}
+                href={`/api/ventas/${postVenta.id}/ticket?auto=1`}
                 target="_blank"
                 rel="noopener"
                 className="rounded-lg bg-[#0EA5E9] px-4 py-2.5 text-sm font-medium text-white hover:bg-[#0284C7]"

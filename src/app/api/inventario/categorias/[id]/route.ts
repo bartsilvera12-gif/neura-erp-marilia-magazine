@@ -22,6 +22,15 @@ export async function PATCH(
     if (body.descripcion !== undefined) patch.descripcion = normalizeUpperNullable(body.descripcion);
     if (body.parent_id !== undefined) patch.parent_id = body.parent_id == null ? null : String(body.parent_id);
     if (body.activo !== undefined) patch.activo = body.activo === true;
+    // Tiles del home del sitio publico.
+    if (body.mostrar_home !== undefined) patch.mostrar_home = body.mostrar_home === true;
+    if (body.orden_home !== undefined) patch.orden_home = Number(body.orden_home) || 0;
+    if (body.subtitulo_home !== undefined) {
+      patch.subtitulo_home = body.subtitulo_home == null ? null : String(body.subtitulo_home);
+    }
+    if (body.link_home !== undefined) {
+      patch.link_home = body.link_home == null ? null : String(body.link_home);
+    }
     const row = await updateCategoriaProducto(schema, ctx.auth.empresa_id, id, patch);
     if (!row) return NextResponse.json(errorResponse(API_ERRORS.NOT_FOUND), { status: 404 });
     return NextResponse.json(successResponse({ categoria: row }));

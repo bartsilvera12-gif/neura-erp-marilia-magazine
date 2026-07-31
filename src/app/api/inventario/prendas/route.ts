@@ -25,6 +25,8 @@ interface VarianteIn {
   precio_venta?: number | string;
   codigo_barras?: string | null;
   ubicacion_principal_id?: string | null;
+  visible_web?: boolean;
+  destacado?: boolean;
 }
 
 const num = (v: unknown): number => {
@@ -71,9 +73,33 @@ export async function POST(request: NextRequest) {
   const tProd = quoteSchemaTable(schema, "productos");
   const tMov = quoteSchemaTable(schema, "movimientos_inventario");
 
+  // Flags del sitio publico. `visible_web` solo existe en los schemas que tienen
+  // web, asi que se chequea la columna antes de insertarla en vez de romper.
+  const bool = (v: unknown): boolean | undefined => (typeof v === "boolean" ? v : undefined);
+  const FLAGS_WEB = ["visible_web", "destacado"] as const;
+  const baseFlags: Record<string, boolean | undefined> = {
+    visible_web: bool(base.visible_web),
+    destacado: bool(base.destacado),
+  };
+
   const client = await pool.connect();
   try {
     await client.query("SET lock_timeout='3s'");
+
+    // Columnas de flags realmente pedidas y realmente existentes en el schema.
+    const pedidas = FLAGS_WEB.filter(
+      (f) => baseFlags[f] !== undefined || variantes.some((v) => bool(v[f]) !== undefined)
+    );
+    const flagsDisponibles = new Set<string>();
+    if (pedidas.length > 0) {
+      const colQ = await client.query<{ column_name: string }>(
+        `SELECT column_name FROM information_schema.columns
+          WHERE table_schema = $1 AND table_name = 'productos' AND column_name = ANY($2::text[])`,
+        [schema, pedidas]
+      );
+      for (const r of colQ.rows) flagsDisponibles.add(r.column_name);
+    }
+
     await client.query("BEGIN");
 
     const baseRes = await client.query<{ id: string }>(
@@ -107,19 +133,28 @@ export async function POST(request: NextRequest) {
       const cb = normalizeUpperCodigoBarras(v.codigo_barras);
       const colorNombre = normalizeUpperText(v.color_nombre) || null;
       const tallaNombre = normalizeUpperText(v.talla_nombre) || null;
+      // Flags web de esta variante: override por variante, si no el del base.
+      const flags: Array<{ col: string; val: boolean }> = [];
+      for (const f of FLAGS_WEB) {
+        if (!flagsDisponibles.has(f)) continue;
+        const val = bool(v[f]) ?? baseFlags[f];
+        if (val !== undefined) flags.push({ col: f, val });
+      }
+      const flagCols = flags.map((f) => `, ${f.col}`).join("");
+      const flagPlaceholders = flags.map((_, i) => `,$${20 + i}::boolean`).join("");
       const ins = await client.query<{ id: string }>(
         `INSERT INTO ${tProd} (
            empresa_id, nombre, sku, costo_promedio, precio_venta, stock_actual, stock_minimo,
            unidad_medida, metodo_valuacion, codigo_barras, codigo_barras_interno,
            categoria_principal_id, ubicacion_principal_id, proveedor_principal_id,
            producto_base_id, color_id, talla_id, precio_costo, precio_mayorista, precio_minorista,
-           color_nombre, talla_nombre
+           color_nombre, talla_nombre${flagCols}
          ) VALUES (
            $1::uuid,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric,
            'UNIDAD','CPP',$8,false,
            $9::uuid,$10::uuid,$11::uuid,
            $12::uuid,$13::uuid,$14::uuid,$15::numeric,$16::numeric,$17::numeric,
-           $18,$19
+           $18,$19${flagPlaceholders}
          ) RETURNING id`,
         [
           empresaId, nombreVar, sku, costo, num(v.precio_venta), stock, num(v.stock_minimo),
@@ -127,6 +162,7 @@ export async function POST(request: NextRequest) {
           baseId, v.color_id ? String(v.color_id) : null, v.talla_id ? String(v.talla_id) : null,
           costo, num(v.precio_mayorista), num(v.precio_minorista),
           colorNombre, tallaNombre,
+          ...flags.map((f) => f.val),
         ]
       );
       const varId = ins.rows[0].id;
