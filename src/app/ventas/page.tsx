@@ -348,8 +348,20 @@ export default function VentasPage() {
                               Devolver
                             </button>
                           )}
-                          {/* Excluyentes: con cliente la venta se factura; sin cliente solo lleva ticket interno. */}
-                          {v.cliente_id ? (
+                          {/* El ticket normal es lo que se imprime al cobrar, asi que
+                              siempre se puede reimprimir. La factura queda como
+                              accion extra para las ventas con cliente. */}
+                          <a
+                            href={`/api/ventas/${v.id}/ticket`}
+                            target="_blank"
+                            rel="noopener"
+                            className={`${BTN_ACCION} border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
+                            title="Ticket de la venta (no fiscal)"
+                          >
+                            <Printer className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                            Imprimir
+                          </a>
+                          {v.cliente_id && (
                             <a
                               href={`/api/ventas/${v.id}/factura`}
                               target="_blank"
@@ -359,17 +371,6 @@ export default function VentasPage() {
                             >
                               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               Factura
-                            </a>
-                          ) : (
-                            <a
-                              href={`/api/ventas/${v.id}/ticket?mode=comandas`}
-                              target="_blank"
-                              rel="noopener"
-                              className={`${BTN_ACCION} border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
-                              title="Ticket interno (venta sin cliente, no lleva factura)"
-                            >
-                              <Printer className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                              Imprimir
                             </a>
                           )}
                           {v.genera_nota_remision && (
