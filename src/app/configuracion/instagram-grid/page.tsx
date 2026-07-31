@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 
 interface Post {
@@ -298,9 +297,6 @@ export default function InstagramGridPage() {
         }
       />
 
-      <div className="mt-8 text-xs text-slate-400">
-        <Link href="/configuracion" className="underline">← Volver a configuración</Link>
-      </div>
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 
 interface Producto {
@@ -198,10 +197,6 @@ export default function ShopTheLookPage() {
           ))}
         </div>
       )}
-
-      <div className="mt-8 text-xs text-slate-400">
-        <Link href="/configuracion" className="underline">← Volver a configuración</Link>
-      </div>
 
       <ConfirmModal
         open={aEliminar !== null}
