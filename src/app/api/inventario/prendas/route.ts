@@ -15,6 +15,8 @@ interface VarianteIn {
   sku?: string;
   color_id?: string | null;
   talla_id?: string | null;
+  color_nombre?: string | null;
+  talla_nombre?: string | null;
   stock_actual?: number | string;
   stock_minimo?: number | string;
   precio_costo?: number | string;
@@ -103,23 +105,28 @@ export async function POST(request: NextRequest) {
       const stock = num(v.stock_actual);
       const costo = num(v.precio_costo);
       const cb = normalizeUpperCodigoBarras(v.codigo_barras);
+      const colorNombre = normalizeUpperText(v.color_nombre) || null;
+      const tallaNombre = normalizeUpperText(v.talla_nombre) || null;
       const ins = await client.query<{ id: string }>(
         `INSERT INTO ${tProd} (
            empresa_id, nombre, sku, costo_promedio, precio_venta, stock_actual, stock_minimo,
            unidad_medida, metodo_valuacion, codigo_barras, codigo_barras_interno,
            categoria_principal_id, ubicacion_principal_id, proveedor_principal_id,
-           producto_base_id, color_id, talla_id, precio_costo, precio_mayorista, precio_minorista
+           producto_base_id, color_id, talla_id, precio_costo, precio_mayorista, precio_minorista,
+           color_nombre, talla_nombre
          ) VALUES (
            $1::uuid,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric,
            'UNIDAD','CPP',$8,false,
            $9::uuid,$10::uuid,$11::uuid,
-           $12::uuid,$13::uuid,$14::uuid,$15::numeric,$16::numeric,$17::numeric
+           $12::uuid,$13::uuid,$14::uuid,$15::numeric,$16::numeric,$17::numeric,
+           $18,$19
          ) RETURNING id`,
         [
           empresaId, nombreVar, sku, costo, num(v.precio_venta), stock, num(v.stock_minimo),
           cb, categoriaId, v.ubicacion_principal_id ? String(v.ubicacion_principal_id) : null, proveedorId,
           baseId, v.color_id ? String(v.color_id) : null, v.talla_id ? String(v.talla_id) : null,
           costo, num(v.precio_mayorista), num(v.precio_minorista),
+          colorNombre, tallaNombre,
         ]
       );
       const varId = ins.rows[0].id;

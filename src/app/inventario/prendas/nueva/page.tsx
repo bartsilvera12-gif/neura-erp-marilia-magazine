@@ -5,14 +5,10 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 interface IdNombre { id: string; nombre: string }
-interface Color { id: string; nombre: string; codigo_hex?: string | null }
-interface Talla { id: string; nombre: string; orden?: number }
 interface Ubic { id: string; nombre: string; tipo: string }
 
 interface VarianteRow {
   key: string;
-  color_id: string;
-  talla_id: string;
   color_nombre: string;
   talla_nombre: string;
   sku: string;
@@ -37,8 +33,6 @@ function makeSku(nombre: string, color: string, talla: string): string {
 
 export default function NuevaPrendaPage() {
   const router = useRouter();
-  const [colores, setColores] = useState<Color[]>([]);
-  const [tallas, setTallas] = useState<Talla[]>([]);
   const [categorias, setCategorias] = useState<IdNombre[]>([]);
   const [ubicaciones, setUbicaciones] = useState<Ubic[]>([]);
   const [proveedores, setProveedores] = useState<IdNombre[]>([]);
@@ -55,9 +49,10 @@ export default function NuevaPrendaPage() {
   const [ubicacionId, setUbicacionId] = useState("");
   const [estado, setEstado] = useState<"activo" | "agotado" | "discontinuado">("activo");
 
-  // Seleccion de variantes
-  const [selColores, setSelColores] = useState<Set<string>>(new Set());
-  const [selTallas, setSelTallas] = useState<Set<string>>(new Set());
+  // Colores y tallas se escriben como texto separado por coma.
+  // Ej: "Negro, Blanco, Rosa" y "S, M, L, XL"
+  const [coloresInput, setColoresInput] = useState("");
+  const [tallasInput, setTallasInput] = useState("");
 
   // Precios por defecto que llenan la matriz
   const [defCosto, setDefCosto] = useState("");
@@ -72,8 +67,8 @@ export default function NuevaPrendaPage() {
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
-  // Fotos por color: colorId → { file, previewUrl }. Se aplican a TODAS
-  // las variantes del color después de crear la prenda.
+  // Fotos por color: colorNombre (normalizado) → { file, previewUrl }.
+  // Se aplican a TODAS las variantes del color después de crear la prenda.
   const [fotoPorColor, setFotoPorColor] = useState<Record<string, { file: File; preview: string }>>({});
 
   useEffect(() => {
@@ -82,15 +77,12 @@ export default function NuevaPrendaPage() {
       try { const r = await fetch(url, { credentials: "include" }); const j = await r.json(); return r.ok && j?.success ? j.data : null; } catch { return null; }
     }
     (async () => {
-      const [cat, cats, ubis, provs] = await Promise.all([
-        load("/api/inventario/prendas/catalogos"),
+      const [cats, ubis, provs] = await Promise.all([
         load("/api/inventario/categorias"),
         load("/api/inventario/ubicaciones"),
         load("/api/proveedores"),
       ]);
       if (cancel) return;
-      if (cat?.colores) setColores(cat.colores as Color[]);
-      if (cat?.tallas) setTallas(cat.tallas as Talla[]);
       if (cats?.categorias) setCategorias(cats.categorias as IdNombre[]);
       if (ubis?.ubicaciones) setUbicaciones(ubis.ubicaciones as Ubic[]);
       if (provs?.proveedores) setProveedores(provs.proveedores as IdNombre[]);
@@ -98,28 +90,27 @@ export default function NuevaPrendaPage() {
     return () => { cancel = true; };
   }, []);
 
-  const colorById = useMemo(() => new Map(colores.map((c) => [c.id, c])), [colores]);
-  const tallaById = useMemo(() => new Map(tallas.map((t) => [t.id, t])), [tallas]);
-
-  function toggle(set: Set<string>, id: string): Set<string> {
-    const n = new Set(set);
-    if (n.has(id)) n.delete(id); else n.add(id);
-    return n;
-  }
+  const coloresParsed = useMemo(
+    () => Array.from(new Set(coloresInput.split(",").map((s) => s.trim()).filter(Boolean))),
+    [coloresInput]
+  );
+  const tallasParsed = useMemo(
+    () => Array.from(new Set(tallasInput.split(",").map((s) => s.trim()).filter(Boolean))),
+    [tallasInput]
+  );
 
   function generarMatriz() {
     setError(null);
     if (!nombre.trim()) { setError("Ingresá el nombre de la prenda antes de generar variantes."); return; }
-    if (selColores.size === 0 || selTallas.size === 0) { setError("Seleccioná al menos un color y una talla."); return; }
+    if (coloresParsed.length === 0 || tallasParsed.length === 0) { setError("Escribí al menos un color y una talla (separados por coma)."); return; }
     const rows: VarianteRow[] = [];
-    for (const cid of selColores) {
-      for (const tid of selTallas) {
-        const cn = colorById.get(cid)?.nombre ?? "";
-        const tn = tallaById.get(tid)?.nombre ?? "";
-        const existing = variantes.find((v) => v.color_id === cid && v.talla_id === tid);
+    for (const cn of coloresParsed) {
+      for (const tn of tallasParsed) {
+        const key = slug(cn) + "_" + slug(tn);
+        const existing = variantes.find((v) => v.key === key);
         rows.push(existing ?? {
-          key: cid + "_" + tid,
-          color_id: cid, talla_id: tid, color_nombre: cn, talla_nombre: tn,
+          key,
+          color_nombre: cn, talla_nombre: tn,
           sku: makeSku(nombre, cn, tn),
           stock_actual: defStock, stock_minimo: defStockMin,
           precio_costo: defCosto, precio_mayorista: defMayorista, precio_minorista: defMinorista, precio_venta: defVenta,
@@ -152,7 +143,8 @@ export default function NuevaPrendaPage() {
         },
         variantes: variantes.map((v) => ({
           nombre: `${nombre} - ${v.color_nombre} - ${v.talla_nombre}`,
-          sku: v.sku, color_id: v.color_id, talla_id: v.talla_id,
+          sku: v.sku,
+          color_nombre: v.color_nombre, talla_nombre: v.talla_nombre,
           stock_actual: Number(v.stock_actual) || 0, stock_minimo: Number(v.stock_minimo) || 0,
           precio_costo: Number(v.precio_costo) || 0, precio_mayorista: Number(v.precio_mayorista) || 0,
           precio_minorista: Number(v.precio_minorista) || 0, precio_venta: Number(v.precio_venta) || 0,
@@ -168,20 +160,21 @@ export default function NuevaPrendaPage() {
 
       // Subir fotos por color y aplicar a TODAS las variantes del color
       const creadas = (j.data?.variantes as Array<{ id: string; sku: string }> | undefined) ?? [];
-      // Mapear color_id → array de variante IDs (matcheando por SKU→ variante local)
+      // Mapear colorKey (slug) → array de variante IDs
       const varByColor: Record<string, string[]> = {};
       variantes.forEach((v, idx) => {
         const created = creadas[idx];
         if (!created) return;
-        if (!varByColor[v.color_id]) varByColor[v.color_id] = [];
-        varByColor[v.color_id].push(created.id);
+        const key = slug(v.color_nombre);
+        if (!varByColor[key]) varByColor[key] = [];
+        varByColor[key].push(created.id);
       });
 
       const colorFotoEntries = Object.entries(fotoPorColor);
       if (colorFotoEntries.length > 0) {
         setOkMsg(`Prenda creada: ${creadas.length} variante(s). Subiendo fotos…`);
-        for (const [colorId, { file }] of colorFotoEntries) {
-          const varIds = varByColor[colorId] || [];
+        for (const [colorKey, { file }] of colorFotoEntries) {
+          const varIds = varByColor[colorKey] || [];
           if (varIds.length === 0) continue;
           // Subir foto a la primera variante del color
           const firstId = varIds[0];
@@ -284,32 +277,36 @@ export default function NuevaPrendaPage() {
         <h2 className="text-lg font-semibold">Variantes: colores × tallas</h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div>
-            <p className="text-xs text-gray-500 mb-2">Colores</p>
-            <div className="flex flex-wrap gap-2">
-              {colores.map((c) => (
-                <label key={c.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${selColores.has(c.id) ? "border-[#4FAEB2] bg-sky-50" : "border-slate-200"}`}>
-                  <input type="checkbox" checked={selColores.has(c.id)} onChange={() => setSelColores((s) => toggle(s, c.id))} />
-                  {c.nombre}
-                </label>
-              ))}
-              {colores.length === 0 && <span className="text-xs text-gray-400">Sin colores cargados.</span>}
-            </div>
+            <label className="block text-xs text-gray-500 mb-1">
+              Colores <span className="text-gray-400">(separados por coma)</span>
+            </label>
+            <input
+              className={inputCls}
+              value={coloresInput}
+              onChange={(e) => setColoresInput(e.target.value)}
+              placeholder="Negro, Blanco, Rosa"
+            />
+            {coloresParsed.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {coloresParsed.map((c) => (
+                  <span key={c} className="inline-flex items-center px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[11px] text-sky-700">{c}</span>
+                ))}
+              </div>
+            )}
 
-            {/* Fotos por color — aparecen al seleccionar un color */}
-            {selColores.size > 0 && (
+            {coloresParsed.length > 0 && (
               <div className="mt-4 pt-4 border-t border-slate-100">
                 <p className="text-xs text-gray-500 mb-3">Foto por color <span className="text-gray-400">(opcional — se aplica a todas las tallas de ese color)</span></p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                  {Array.from(selColores).map((cid) => {
-                    const col = colores.find((c) => c.id === cid);
-                    if (!col) return null;
-                    const asig = fotoPorColor[cid];
+                  {coloresParsed.map((cn) => {
+                    const key = slug(cn);
+                    const asig = fotoPorColor[key];
                     return (
-                      <div key={cid} className="border border-slate-200 rounded-lg p-2 flex items-center gap-2">
+                      <div key={key} className="border border-slate-200 rounded-lg p-2 flex items-center gap-2">
                         <label className="shrink-0 h-14 w-14 rounded-md border border-dashed border-slate-300 bg-slate-50 flex items-center justify-center cursor-pointer overflow-hidden hover:bg-slate-100">
                           {asig ? (
                             // eslint-disable-next-line @next/next/no-img-element
-                            <img src={asig.preview} alt={col.nombre} className="h-full w-full object-cover" />
+                            <img src={asig.preview} alt={cn} className="h-full w-full object-cover" />
                           ) : (
                             <span className="text-[10px] text-slate-400 text-center px-1">Subir foto</span>
                           )}
@@ -320,17 +317,17 @@ export default function NuevaPrendaPage() {
                             onChange={(e) => {
                               const f = e.target.files?.[0];
                               if (f) {
-                                setFotoPorColor((prev) => ({ ...prev, [cid]: { file: f, preview: URL.createObjectURL(f) } }));
+                                setFotoPorColor((prev) => ({ ...prev, [key]: { file: f, preview: URL.createObjectURL(f) } }));
                               }
                             }}
                           />
                         </label>
                         <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium truncate">{col.nombre}</div>
+                          <div className="text-sm font-medium truncate">{cn}</div>
                           {asig && (
                             <button
                               type="button"
-                              onClick={() => setFotoPorColor((prev) => { const c = { ...prev }; delete c[cid]; return c; })}
+                              onClick={() => setFotoPorColor((prev) => { const c = { ...prev }; delete c[key]; return c; })}
                               className="text-[11px] text-red-600 hover:underline"
                             >
                               Quitar foto
@@ -345,16 +342,22 @@ export default function NuevaPrendaPage() {
             )}
           </div>
           <div>
-            <p className="text-xs text-gray-500 mb-2">Tallas</p>
-            <div className="flex flex-wrap gap-2">
-              {tallas.map((t) => (
-                <label key={t.id} className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border cursor-pointer text-sm ${selTallas.has(t.id) ? "border-[#4FAEB2] bg-sky-50" : "border-slate-200"}`}>
-                  <input type="checkbox" checked={selTallas.has(t.id)} onChange={() => setSelTallas((s) => toggle(s, t.id))} />
-                  {t.nombre}
-                </label>
-              ))}
-              {tallas.length === 0 && <span className="text-xs text-gray-400">Sin tallas cargadas.</span>}
-            </div>
+            <label className="block text-xs text-gray-500 mb-1">
+              Tallas <span className="text-gray-400">(separadas por coma)</span>
+            </label>
+            <input
+              className={inputCls}
+              value={tallasInput}
+              onChange={(e) => setTallasInput(e.target.value)}
+              placeholder="S, M, L, XL"
+            />
+            {tallasParsed.length > 0 && (
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {tallasParsed.map((t) => (
+                  <span key={t} className="inline-flex items-center px-2 py-0.5 rounded-full bg-sky-50 border border-sky-200 text-[11px] text-sky-700">{t}</span>
+                ))}
+              </div>
+            )}
           </div>
         </div>
 
