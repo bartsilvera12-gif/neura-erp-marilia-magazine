@@ -546,20 +546,6 @@ export default function EditarProductoPage() {
             </div>
           </div>
 
-          <div>
-            <label className={labelClass}>Método de valuación</label>
-            <select
-              name="metodo_valuacion"
-              value={form.metodo_valuacion}
-              onChange={handleChange}
-              className={inputClass}
-            >
-              <option value="CPP">CPP — Costo Promedio Ponderado</option>
-              <option value="FIFO">FIFO — Primero en entrar, primero en salir</option>
-              <option value="LIFO">LIFO — Último en entrar, primero en salir</option>
-            </select>
-          </div>
-
           <div className="flex gap-4 pt-2">
             <button
               type="submit"
