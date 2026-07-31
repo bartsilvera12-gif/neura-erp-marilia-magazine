@@ -361,17 +361,22 @@ export default function NuevaPrendaPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-2 border-t border-slate-100">
-          <div><label className="block text-[11px] text-gray-400 mb-1">Costo (def)</label><input className={cellCls} value={defCosto} onChange={(e) => setDefCosto(e.target.value)} /></div>
-          <div><label className="block text-[11px] text-gray-400 mb-1">Mayorista (def)</label><input className={cellCls} value={defMayorista} onChange={(e) => setDefMayorista(e.target.value)} /></div>
-          <div><label className="block text-[11px] text-gray-400 mb-1">Minorista (def)</label><input className={cellCls} value={defMinorista} onChange={(e) => setDefMinorista(e.target.value)} /></div>
-          <div><label className="block text-[11px] text-gray-400 mb-1">Venta (def)</label><input className={cellCls} value={defVenta} onChange={(e) => setDefVenta(e.target.value)} /></div>
-          <div><label className="block text-[11px] text-gray-400 mb-1">Stock (def)</label><input className={cellCls} value={defStock} onChange={(e) => setDefStock(e.target.value)} /></div>
-          <div><label className="block text-[11px] text-gray-400 mb-1">Stock mín (def)</label><input className={cellCls} value={defStockMin} onChange={(e) => setDefStockMin(e.target.value)} /></div>
+        <div className="pt-2 border-t border-slate-100">
+          <p className="text-xs text-gray-500 mb-3">
+            Valores iniciales <span className="text-gray-400">(opcional — se copian a todas las variantes; después editás cada fila con su stock y precio real)</span>
+          </p>
+          <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
+            <div><label className="block text-[11px] text-gray-400 mb-1">Costo</label><input className={cellCls} value={defCosto} onChange={(e) => setDefCosto(e.target.value)} /></div>
+            <div><label className="block text-[11px] text-gray-400 mb-1">Mayorista</label><input className={cellCls} value={defMayorista} onChange={(e) => setDefMayorista(e.target.value)} /></div>
+            <div><label className="block text-[11px] text-gray-400 mb-1">Minorista</label><input className={cellCls} value={defMinorista} onChange={(e) => setDefMinorista(e.target.value)} /></div>
+            <div><label className="block text-[11px] text-gray-400 mb-1">Venta</label><input className={cellCls} value={defVenta} onChange={(e) => setDefVenta(e.target.value)} /></div>
+            <div><label className="block text-[11px] text-gray-400 mb-1">Stock</label><input className={cellCls} value={defStock} onChange={(e) => setDefStock(e.target.value)} /></div>
+            <div><label className="block text-[11px] text-gray-400 mb-1">Stock mín</label><input className={cellCls} value={defStockMin} onChange={(e) => setDefStockMin(e.target.value)} /></div>
+          </div>
         </div>
 
         <button type="button" onClick={generarMatriz} className="bg-[#4FAEB2] hover:bg-[#3F8E91] text-white px-4 py-2 rounded-lg text-sm font-medium">
-          Generar matriz de variantes
+          {variantes.length > 0 ? "Regenerar grilla de variantes" : "Siguiente: cargar stock y precios por variante →"}
         </button>
       </div>
 
