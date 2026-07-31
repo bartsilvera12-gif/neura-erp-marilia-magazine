@@ -1,5 +1,4 @@
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
-import { getEmpresaId } from "@/lib/db/empresa";
 import { ymdInicioFinMesLocal } from "@/lib/fechas/calendario";
 import { getBrowserSupabaseForEmpresaData } from "@/lib/supabase/browser-data-client";
 
@@ -81,58 +80,63 @@ export async function getGastosMesActual(): Promise<Gasto[]> {
   return (data ?? []).map(mapRow);
 }
 
+/**
+ * Escrituras via API del tenant: la empresa la resuelve el server desde la
+ * sesion. Antes se insertaba directo con el cliente del browser y, si el
+ * perfil del usuario todavia no estaba cargado, cortaba con "Usuario no
+ * autenticado o sin empresa" aunque la sesion fuera valida.
+ */
+async function escribirGasto(
+  url: string,
+  method: "POST" | "PATCH",
+  payload: Record<string, unknown>
+): Promise<Gasto> {
+  const res = await fetchWithSupabaseSession(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json().catch(() => ({}))) as {
+    success?: boolean;
+    data?: Record<string, unknown>;
+    error?: string;
+  };
+  if (!res.ok || !json.success || !json.data) {
+    throw new Error(json.error || `Error ${res.status} al guardar el gasto.`);
+  }
+  return mapRow(json.data);
+}
+
 export async function createGasto(input: GastoInput): Promise<Gasto> {
   if (input.monto <= 0) throw new Error("El monto debe ser mayor a 0");
-
-  const supabase = await getBrowserSupabaseForEmpresaData();
-  const empresa_id = await getEmpresaId();
-
-  const { data, error } = await supabase
-    .from("gastos")
-    .insert({
-      empresa_id,
-      categoria: input.categoria.trim() || null,
-      descripcion: input.descripcion.trim() || null,
-      monto: input.monto,
-      tipo: input.tipo,
-      recurrente: input.recurrente,
-      frecuencia: input.frecuencia?.trim() || null,
-      fecha: input.fecha,
-    })
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return mapRow(data as Record<string, unknown>);
+  return escribirGasto("/api/gastos", "POST", {
+    categoria: input.categoria.trim(),
+    descripcion: input.descripcion.trim(),
+    monto: input.monto,
+    tipo: input.tipo,
+    recurrente: input.recurrente,
+    frecuencia: input.frecuencia?.trim() ?? "",
+    fecha: input.fecha,
+  });
 }
 
 export async function updateGasto(id: string, input: Partial<GastoInput>): Promise<Gasto> {
   if (input.monto !== undefined && input.monto <= 0) throw new Error("El monto debe ser mayor a 0");
-
-  const supabase = await getBrowserSupabaseForEmpresaData();
-  const update: Record<string, unknown> = {};
-  if (input.categoria !== undefined) update.categoria = input.categoria.trim() || null;
-  if (input.descripcion !== undefined) update.descripcion = input.descripcion.trim() || null;
-  if (input.monto !== undefined) update.monto = input.monto;
-  if (input.tipo !== undefined) update.tipo = input.tipo;
-  if (input.recurrente !== undefined) update.recurrente = input.recurrente;
-  if (input.frecuencia !== undefined) update.frecuencia = input.frecuencia?.trim() || null;
-  if (input.fecha !== undefined) update.fecha = input.fecha;
-
-  const { data, error } = await supabase
-    .from("gastos")
-    .update(update)
-    .eq("id", id)
-    .select()
-    .single();
-
-  if (error) throw new Error(error.message);
-  return mapRow(data as Record<string, unknown>);
+  const payload: Record<string, unknown> = {};
+  if (input.categoria !== undefined) payload.categoria = input.categoria.trim();
+  if (input.descripcion !== undefined) payload.descripcion = input.descripcion.trim();
+  if (input.monto !== undefined) payload.monto = input.monto;
+  if (input.tipo !== undefined) payload.tipo = input.tipo;
+  if (input.recurrente !== undefined) payload.recurrente = input.recurrente;
+  if (input.frecuencia !== undefined) payload.frecuencia = input.frecuencia?.trim() ?? "";
+  if (input.fecha !== undefined) payload.fecha = input.fecha;
+  return escribirGasto(`/api/gastos/${id}`, "PATCH", payload);
 }
 
 export async function deleteGasto(id: string): Promise<void> {
-  const supabase = await getBrowserSupabaseForEmpresaData();
-  const { error } = await supabase.from("gastos").delete().eq("id", id);
-
-  if (error) throw new Error(error.message);
+  const res = await fetchWithSupabaseSession(`/api/gastos/${id}`, { method: "DELETE" });
+  if (!res.ok) {
+    const t = await res.text().catch(() => "");
+    throw new Error(t || `Error ${res.status} al eliminar el gasto.`);
+  }
 }

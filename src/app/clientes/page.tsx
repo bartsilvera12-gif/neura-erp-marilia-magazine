@@ -8,8 +8,6 @@ import { FancySelect } from "@/components/ui/FancySelect";
 import MobileFab from "@/components/ui/MobileFab";
 import { getClientesPaginado, clienteNombre } from "@/lib/clientes/storage";
 import type { Cliente } from "@/lib/clientes/types";
-import { etiquetaVisibleTipoServicio, type ClienteTipoServicioRow } from "@/lib/clientes/tipo-servicio-catalogo";
-import { filasTiposDesdeSistemaEstatico, fetchTiposFormCliente } from "@/lib/clientes/fetch-tipos-servicio-form";
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -59,7 +57,6 @@ type ClienteColumnKey =
   | "telefono"
   | "plan_activo"
   | "origen"
-  | "tipo_servicio"
   | "estado"
   | "desde"
   | "creado_por"
@@ -84,7 +81,6 @@ const DEFAULT_VISIBLE_COLUMN_KEYS: ClienteColumnKey[] = [
   "telefono",
   "plan_activo",
   "origen",
-  "tipo_servicio",
   "estado",
   "desde",
 ];
@@ -128,7 +124,7 @@ function VendedorResponsableCell({ cliente }: { cliente: Cliente }) {
   return <span className="text-slate-400">Sin asignar</span>;
 }
 
-function buildClienteColumns(mapNombreTipo: Record<string, string>): ClienteColumnDef[] {
+function buildClienteColumns(): ClienteColumnDef[] {
   const th = "text-left text-xs font-semibold text-slate-600 px-5 py-3 whitespace-nowrap";
   const td = "px-5 py-3.5";
   return [
@@ -215,14 +211,6 @@ function buildClienteColumns(mapNombreTipo: Record<string, string>): ClienteColu
       render: (c) => <BadgeOrigen origen={c.origen} />,
     },
     {
-      key: "tipo_servicio",
-      label: "Tipo servicio",
-      visibleDefault: true,
-      headerClassName: th,
-      className: `${td} text-xs text-gray-600 whitespace-nowrap`,
-      render: (c) => etiquetaVisibleTipoServicio(c.tipo_servicio_cliente ?? null, mapNombreTipo),
-    },
-    {
       key: "estado",
       label: "Estado",
       visibleDefault: true,
@@ -288,17 +276,10 @@ export default function ClientesPage() {
   const [filtroEstado, setFiltroEstado] = useState<"" | "activo" | "inactivo">("");
   const [filtroOrigen, setFiltroOrigen] = useState<"" | "CRM" | "VENTA" | "MANUAL">("");
   const [filtroTipo,   setFiltroTipo]   = useState<"" | "empresa" | "persona">("");
-  const [filtroTipoServicio, setFiltroTipoServicio] = useState<"" | string>("");
   const [columnasOpen, setColumnasOpen] = useState(false);
   const [columnasInicializadas, setColumnasInicializadas] = useState(false);
   const [visibleColumnKeys, setVisibleColumnKeys] = useState<ClienteColumnKey[]>(DEFAULT_VISIBLE_COLUMN_KEYS);
-  const [filasTipoCatalogo, setFilasTipoCatalogo] = useState<ClienteTipoServicioRow[]>(() => filasTiposDesdeSistemaEstatico());
-  const mapNombreTipo = useMemo(() => {
-    const m: Record<string, string> = {};
-    for (const t of filasTipoCatalogo) m[t.slug] = t.nombre;
-    return m;
-  }, [filasTipoCatalogo]);
-  const clienteColumns = useMemo(() => buildClienteColumns(mapNombreTipo), [mapNombreTipo]);
+  const clienteColumns = useMemo(() => buildClienteColumns(), []);
   const visibleColumnSet = useMemo(() => new Set(visibleColumnKeys), [visibleColumnKeys]);
   const visibleColumns = useMemo(
     () => clienteColumns.filter((col) => visibleColumnSet.has(col.key)),
@@ -314,7 +295,7 @@ export default function ClientesPage() {
   // Al cambiar búsqueda o filtros, volver a la página 1.
   useEffect(() => {
     setPage(1);
-  }, [busquedaDebounced, filtroEstado, filtroOrigen, filtroTipo, filtroTipoServicio, pageSize]);
+  }, [busquedaDebounced, filtroEstado, filtroOrigen, filtroTipo, pageSize]);
 
   // Carga paginada server-side (búsqueda + filtros + page/pageSize).
   useEffect(() => {
@@ -323,7 +304,7 @@ export default function ClientesPage() {
     getClientesPaginado({
       page, pageSize, incluirPlanActivo: true,
       q: busquedaDebounced,
-      estado: filtroEstado, origen: filtroOrigen, tipo: filtroTipo, tipoServicio: filtroTipoServicio,
+      estado: filtroEstado, origen: filtroOrigen, tipo: filtroTipo,
     }).then((res) => {
       if (cancel) return;
       setClientes(res.clientes);
@@ -331,11 +312,7 @@ export default function ClientesPage() {
       setCargando(false);
     });
     return () => { cancel = true; };
-  }, [page, pageSize, busquedaDebounced, filtroEstado, filtroOrigen, filtroTipo, filtroTipoServicio]);
-
-  useEffect(() => {
-    void fetchTiposFormCliente().then(setFilasTipoCatalogo);
-  }, []);
+  }, [page, pageSize, busquedaDebounced, filtroEstado, filtroOrigen, filtroTipo]);
 
   useEffect(() => {
     try {
@@ -358,16 +335,6 @@ export default function ClientesPage() {
     }
   }, [visibleColumnKeys, columnasInicializadas]);
 
-  const slugsExtraFiltro = useMemo(() => {
-    const known = new Set(filasTipoCatalogo.map((f) => f.slug));
-    const u = new Set<string>();
-    for (const c of clientes) {
-      const t = (c.tipo_servicio_cliente ?? "").trim();
-      if (t && !known.has(t)) u.add(t);
-    }
-    return Array.from(u).sort();
-  }, [clientes, filasTipoCatalogo]);
-
   useEffect(() => {
     if (searchParams?.get("baja_ok") === "1") {
       setBajaOk(true);
@@ -381,7 +348,7 @@ export default function ClientesPage() {
   // muestra tal cual lo que llega.
   const filtrados = clientes;
 
-  const hayFiltros = busqueda || filtroEstado || filtroOrigen || filtroTipo || filtroTipoServicio;
+  const hayFiltros = busqueda || filtroEstado || filtroOrigen || filtroTipo;
   const totalPaginas = Math.max(1, Math.ceil(total / pageSize));
   const desde = total === 0 ? 0 : (page - 1) * pageSize + 1;
   const hasta = Math.min(page * pageSize, total);
@@ -483,24 +450,9 @@ export default function ClientesPage() {
             { value: "MANUAL", label: "Manual" },
           ]}
         />
-        <FancySelect
-          value={filtroTipoServicio}
-          onChange={(v) => setFiltroTipoServicio(v)}
-          ariaLabel="Filtrar por tipo de servicio"
-          className="w-44"
-          size="sm"
-          options={[
-            { value: "", label: "Tipo servicio" },
-            ...filasTipoCatalogo.map((t) => ({ value: t.slug, label: t.nombre })),
-            ...slugsExtraFiltro.map((slug) => ({
-              value: slug,
-              label: etiquetaVisibleTipoServicio(slug, mapNombreTipo),
-            })),
-          ]}
-        />
         {hayFiltros && (
           <button
-            onClick={() => { setBusqueda(""); setFiltroEstado(""); setFiltroOrigen(""); setFiltroTipo(""); setFiltroTipoServicio(""); }}
+            onClick={() => { setBusqueda(""); setFiltroEstado(""); setFiltroOrigen(""); setFiltroTipo(""); }}
             className="text-xs text-gray-500 hover:text-gray-900 border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50 transition-colors"
           >
             Limpiar

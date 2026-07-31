@@ -400,7 +400,9 @@ export function construirPatchActualizacionCliente(datos: ActualizarClienteInput
     patch.nombre = datos.nombre_contacto ?? null;
     patch.nombre_contacto = datos.nombre_contacto ?? null;
   }
-  if (datos.ruc !== undefined) patch.ruc = datos.ruc ?? null;
+  // "" se guarda como NULL: permite borrar el RUC de un cliente que dejo de
+  // ser contribuyente, en vez de dejar una cadena vacia en la columna.
+  if (datos.ruc !== undefined) patch.ruc = (datos.ruc ?? "").trim() || null;
   if (datos.documento !== undefined) patch.documento = datos.documento ?? null;
   if (datos.telefono !== undefined) patch.telefono = datos.telefono ?? null;
   if (datos.telefono_secundario !== undefined) patch.telefono_secundario = datos.telefono_secundario ?? null;

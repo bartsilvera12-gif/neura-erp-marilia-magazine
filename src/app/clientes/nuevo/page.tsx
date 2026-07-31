@@ -22,8 +22,6 @@ import MontoInput from "@/components/ui/MontoInput";
 import { getPlanes } from "@/lib/planes/storage";
 import type { Cliente, TipoCliente, OrigenCliente } from "@/lib/clientes/types";
 import { ClienteDatosSifenReceptorForm } from "@/components/clientes/ClienteDatosSifenReceptorForm";
-import type { ClienteTipoServicioRow } from "@/lib/clientes/tipo-servicio-catalogo";
-import { filasTiposDesdeSistemaEstatico, fetchTiposFormCliente } from "@/lib/clientes/fetch-tipos-servicio-form";
 import type { Plan } from "@/lib/planes/types";
 import { NEURA_CLIENT_SCHEMA } from "@/lib/supabase/schema";
 
@@ -115,12 +113,13 @@ function NuevoClienteForm() {
     generar_factura:   false,
   });
 
+  /** Persona fisica con RUC: habilita el campo RUC en el bloque de identidad. */
+  const [esContribuyente, setEsContribuyente] = useState(false);
   const [gestionTributariaEmpresa, setGestionTributariaEmpresa] = useState(false);
   const [catalogoObligaciones, setCatalogoObligaciones] = useState<
     { id: string; slug: string; nombre: string; requiere_detalle_otro: boolean }[]
   >([]);
   const [formTributario, setFormTributario] = useState<TributarioFormState>(() => emptyTributarioForm());
-  const [filasTipoServicio, setFilasTipoServicio] = useState<ClienteTipoServicioRow[]>(() => filasTiposDesdeSistemaEstatico());
 
   useEffect(() => {
     getPlanes().then(setPlanes);
@@ -143,10 +142,6 @@ function NuevoClienteForm() {
     return () => {
       cancelled = true;
     };
-  }, []);
-
-  useEffect(() => {
-    void fetchTiposFormCliente().then(setFilasTipoServicio);
   }, []);
 
   useEffect(() => {
@@ -430,25 +425,6 @@ function NuevoClienteForm() {
               </div>
             )}
 
-            {!SIMPLE_CLIENTE && (
-            <div>
-              <label className={labelClass}>Tipo de servicio</label>
-              <select
-                name="tipo_servicio_cliente"
-                value={form.tipo_servicio_cliente}
-                onChange={(e) => setForm((prev) => ({ ...prev, tipo_servicio_cliente: e.target.value }))}
-                className={inputClass}
-              >
-                <option value="">— Ninguno —</option>
-                {filasTipoServicio.map((f) => (
-                  <option key={f.slug} value={f.slug}>
-                    {f.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            )}
-
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label className={labelClass}>
@@ -490,6 +466,43 @@ function NuevoClienteForm() {
                 )}
               </div>
             </div>
+
+            {/* Una persona fisica tambien puede tener RUC (contribuyente del
+                SET). Sin esto la factura le sale como consumidor final. */}
+            {form.tipo_cliente === "persona" && (
+              <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-4">
+                <label className="flex items-start gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={esContribuyente}
+                    onChange={(e) => {
+                      setEsContribuyente(e.target.checked);
+                      if (!e.target.checked) setForm((prev) => ({ ...prev, ruc: "" }));
+                    }}
+                    className="mt-0.5 h-4 w-4 shrink-0 accent-[#0EA5E9]"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-slate-700">Es contribuyente del SET</span>
+                    <span className="block text-xs text-slate-500">
+                      Tildalo si la persona tiene RUC y necesita factura a su nombre.
+                    </span>
+                  </span>
+                </label>
+                {esContribuyente && (
+                  <div className="mt-3 max-w-xs">
+                    <label className={labelClass}>RUC</label>
+                    <input
+                      type="text"
+                      name="ruc"
+                      value={form.ruc}
+                      onChange={handleChange}
+                      placeholder="0000000-0"
+                      className={inputClass}
+                    />
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* ── Contacto ─────────────────────────────────────────────────── */}
