@@ -536,25 +536,7 @@ export default function NuevaCompraPage() {
                 <InlineFormBox titulo="Nuevo producto" onCancel={handleCancelarProducto} onSave={handleAgregarProducto}
                   saveDisabled={!formProducto.nombre.trim() || !formProducto.sku.trim()}>
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                    <div className="col-span-2">
-                      <label className={labelSmClass}>Tipo de producto</label>
-                      <SegmentedControl<"reventa" | "menu" | "materia"> small value={formProducto.tipo}
-                        options={[
-                          { value: "reventa", label: "Reventa" },
-                          { value: "menu", label: "Menú" },
-                          { value: "materia", label: "Materia prima" },
-                        ]}
-                        onChange={(v) => setFormProducto((prev) => ({
-                          ...prev,
-                          tipo: v,
-                          unidad_medida: v === "materia" && prev.unidad_medida === "Unidad" ? "G" : prev.unidad_medida,
-                        }))} />
-                      {formProducto.tipo === "materia" && (
-                        <p className="mt-1.5 text-xs text-amber-600">
-                          Materia prima / insumo: se usa en recetas. No requiere precio de venta.
-                        </p>
-                      )}
-                    </div>
+                    {/* Tipo fijo en "reventa" — Marilia Magazine es tienda de ropa, no maneja recetas ni insumos. */}
                     <div>
                       <label className={labelSmClass}>Nombre <span className="text-red-500">*</span></label>
                       <input type="text" name="nombre" value={formProducto.nombre} onChange={handleProductoInputChange}
