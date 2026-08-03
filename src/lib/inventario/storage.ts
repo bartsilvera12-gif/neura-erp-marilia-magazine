@@ -146,22 +146,21 @@ export async function getProducto(id: string): Promise<Producto | null> {
 }
 
 /**
- * Comprueba si ya existe un producto con el mismo SKU o nombre (case-insensitive).
+ * Comprueba si ya existe un producto con el mismo SKU (case-insensitive).
  * Devuelve el producto encontrado o null.
+ *
+ * OJO: el nombre NO se valida como único porque una prenda con múltiples
+ * variantes (color × talla) comparte el mismo nombre entre todas las filas
+ * de `productos`. El SKU sí es único a nivel empresa por índice en la DB.
  */
 export async function productoExiste(
   sku: string,
-  nombre: string
+  _nombre: string
 ): Promise<Producto | null> {
   const productos = await getProductos();
   const skuNorm = sku.toLowerCase().trim();
-  const nombreNorm = nombre.toLowerCase().trim();
   return (
-    productos.find(
-      (p) =>
-        p.sku.toLowerCase() === skuNorm ||
-        p.nombre.toLowerCase() === nombreNorm
-    ) ?? null
+    productos.find((p) => p.sku.toLowerCase() === skuNorm) ?? null
   );
 }
 
