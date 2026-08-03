@@ -292,8 +292,6 @@ export async function searchProductosPg(
   const tC = quoteSchemaTable(schema, "categorias_productos");
   const tPr = quoteSchemaTable(schema, "proveedores");
   const tU = quoteSchemaTable(schema, "inventario_ubicaciones");
-  const tCol = quoteSchemaTable(schema, "prenda_colores");
-  const tTal = quoteSchemaTable(schema, "prenda_tallas");
   const safeLimit = Math.max(1, Math.min(100, Math.floor(limit)));
   const params: unknown[] = [empresaId];
 
@@ -312,7 +310,7 @@ export async function searchProductosPg(
     whereParts.push(
       `(p.nombre ILIKE $${idx} OR p.sku ILIKE $${idx} OR p.codigo_barras ILIKE $${idx}
         OR c.nombre ILIKE $${idx} OR pr.nombre ILIKE $${idx} OR u.nombre ILIKE $${idx}
-        OR cl.nombre ILIKE $${idx} OR tl.nombre ILIKE $${idx})`
+        OR p.color_nombre ILIKE $${idx} OR p.talla_nombre ILIKE $${idx})`
     );
   }
 
@@ -324,14 +322,12 @@ export async function searchProductosPg(
            pr.nombre AS proveedor_nombre,
            u.nombre  AS ubicacion_nombre,
            u.tipo    AS ubicacion_tipo,
-           cl.nombre AS color_nombre,
-           tl.nombre AS talla_nombre
+           p.color_nombre,
+           p.talla_nombre
       FROM ${tP} p
       LEFT JOIN ${tC}  c  ON c.id = p.categoria_principal_id
       LEFT JOIN ${tPr} pr ON pr.id = p.proveedor_principal_id
       LEFT JOIN ${tU}  u  ON u.id = p.ubicacion_principal_id
-      LEFT JOIN ${tCol} cl ON cl.id = p.color_id
-      LEFT JOIN ${tTal} tl ON tl.id = p.talla_id
      WHERE ${whereParts.join(" AND ")}
      ORDER BY (p.stock_actual > 0) DESC, p.nombre
      LIMIT ${safeLimit}

@@ -45,12 +45,10 @@ export async function GET(request: NextRequest) {
   const tCat = quoteSchemaTable(schema, "categorias_productos");
   const tProv = quoteSchemaTable(schema, "proveedores");
   const tUbi = quoteSchemaTable(schema, "inventario_ubicaciones");
-  const tCol = quoteSchemaTable(schema, "prenda_colores");
-  const tTal = quoteSchemaTable(schema, "prenda_tallas");
 
   try {
     const { rows } = await pool.query<Row>(
-      `SELECT p.nombre, p.sku, col.nombre AS color_nombre, tal.nombre AS talla_nombre,
+      `SELECT p.nombre, p.sku, p.color_nombre, p.talla_nombre,
               p.codigo_barras, p.codigo_barras_interno,
               c.nombre AS categoria_nombre,
               pr.nombre AS proveedor_nombre,
@@ -61,8 +59,6 @@ export async function GET(request: NextRequest) {
          LEFT JOIN ${tCat}  c  ON c.id = p.categoria_principal_id
          LEFT JOIN ${tProv} pr ON pr.id = p.proveedor_principal_id
          LEFT JOIN ${tUbi}  u  ON u.id = p.ubicacion_principal_id
-         LEFT JOIN ${tCol}  col ON col.id = p.color_id
-         LEFT JOIN ${tTal}  tal ON tal.id = p.talla_id
         WHERE p.empresa_id = $1::uuid
         ORDER BY p.nombre`,
       [empresaId]

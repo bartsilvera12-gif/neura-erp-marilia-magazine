@@ -11,8 +11,6 @@ import type { Producto } from "@/lib/inventario/types";
 interface CatRow { id: string; nombre: string }
 interface UbiRow { id: string; nombre: string; tipo: string }
 interface ProvRow { id: string; nombre: string }
-interface ColorRow { id: string; nombre: string; codigo_hex?: string | null }
-interface TallaRow { id: string; nombre: string; orden?: number }
 
 const inputClass =
   "w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#4FAEB2] focus:outline-none bg-white text-sm";
@@ -47,15 +45,14 @@ export default function NuevoItemPage() {
   const [categorias, setCategorias] = useState<CatRow[]>([]);
   const [ubicaciones, setUbicaciones] = useState<UbiRow[]>([]);
   const [proveedores, setProveedores] = useState<ProvRow[]>([]);
-  const [colores, setColores] = useState<ColorRow[]>([]);
-  const [tallas, setTallas] = useState<TallaRow[]>([]);
   const [productos, setProductos] = useState<Producto[]>([]);
 
   // Form
   const [nombre, setNombre] = useState("");
   const [categoriaId, setCategoriaId] = useState<string | null>(null);
-  const [colorId, setColorId] = useState("");
-  const [tallaId, setTallaId] = useState("");
+  // Color y talla se escriben libres: no hay catálogo previo que mantener.
+  const [colorNombreInput, setColorNombreInput] = useState("");
+  const [tallaNombreInput, setTallaNombreInput] = useState("");
   const [tipoCorte, setTipoCorte] = useState<"masculino" | "femenino" | "unisex">("unisex");
   const [precioCosto, setPrecioCosto] = useState("");
   const [precioMayorista, setPrecioMayorista] = useState("");
@@ -95,15 +92,12 @@ export default function NuevoItemPage() {
       try { const r = await fetch(url, { credentials: "include" }); const j = await r.json(); return r.ok && j?.success ? j.data : null; } catch { return null; }
     }
     (async () => {
-      const [cat, cats, ubis, provs] = await Promise.all([
-        load("/api/inventario/prendas/catalogos"),
+      const [cats, ubis, provs] = await Promise.all([
         load("/api/inventario/categorias"),
         load("/api/inventario/ubicaciones"),
         load("/api/proveedores"),
       ]);
       if (cancel) return;
-      if (cat?.colores) setColores(cat.colores as ColorRow[]);
-      if (cat?.tallas) setTallas(cat.tallas as TallaRow[]);
       if (cats?.categorias) setCategorias(cats.categorias as CatRow[]);
       if (ubis?.ubicaciones) setUbicaciones(ubis.ubicaciones as UbiRow[]);
       if (provs?.proveedores) setProveedores(provs.proveedores as ProvRow[]);
@@ -122,8 +116,6 @@ export default function NuevoItemPage() {
     return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  const colorById = useMemo(() => new Map(colores.map((c) => [c.id, c])), [colores]);
-  const tallaById = useMemo(() => new Map(tallas.map((t) => [t.id, t])), [tallas]);
   const categoriaById = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias]);
 
   const skusExistentes = useMemo(
@@ -150,8 +142,8 @@ export default function NuevoItemPage() {
   function generarSku() {
     setError(null);
     const cat = categoriaId ? token(categoriaById.get(categoriaId)?.nombre ?? "", 4) : "";
-    const col = colorId ? token(colorById.get(colorId)?.nombre ?? "", 3) : "";
-    const tal = tallaId ? token(tallaById.get(tallaId)?.nombre ?? "", 4) : "";
+    const col = token(colorNombreInput, 3);
+    const tal = token(tallaNombreInput, 4);
     const partes = ["MC", cat || token(nombre, 4) || "ITEM", col, tal].filter(Boolean);
     const prefijo = partes.join("-");
     // Secuencia: busca el mayor -NNN ya usado con ese prefijo y suma 1.
@@ -222,8 +214,8 @@ export default function NuevoItemPage() {
       if (codigosExistentes.has(cb)) { setError(`El código de barras "${cb}" ya está asignado a otro producto.`); return; }
     }
 
-    const colorNombre = colorId ? colorById.get(colorId)?.nombre ?? "" : "";
-    const tallaNombre = tallaId ? tallaById.get(tallaId)?.nombre ?? "" : "";
+    const colorNombre = colorNombreInput.trim();
+    const tallaNombre = tallaNombreInput.trim();
     const nombreVar = [nombreT, colorNombre, tallaNombre].filter(Boolean).join(" - ");
 
     setSubmitting(true);
@@ -242,8 +234,8 @@ export default function NuevoItemPage() {
         variantes: [{
           nombre: nombreVar,
           sku: skuT,
-          color_id: colorId || null,
-          talla_id: tallaId || null,
+          color_nombre: colorNombre || null,
+          talla_nombre: tallaNombre || null,
           stock_actual: Number(stockActual) || 0,
           stock_minimo: Number(stockMinimo) || 0,
           precio_costo: Number(precioCosto) || 0,
@@ -334,17 +326,11 @@ export default function NuevoItemPage() {
           </div>
           <div className="md:col-span-3">
             <label className={labelClass}>Color</label>
-            <select className={inputClass} value={colorId} onChange={(e) => setColorId(e.target.value)}>
-              <option value="">— Sin color —</option>
-              {colores.map((c) => <option key={c.id} value={c.id}>{c.nombre}</option>)}
-            </select>
+            <input className={inputClass} value={colorNombreInput} onChange={(e) => setColorNombreInput(e.target.value)} placeholder="Ej: Negro" />
           </div>
           <div className="md:col-span-3">
             <label className={labelClass}>Talla / Tamaño</label>
-            <select className={inputClass} value={tallaId} onChange={(e) => setTallaId(e.target.value)}>
-              <option value="">— Sin talla —</option>
-              {tallas.map((t) => <option key={t.id} value={t.id}>{t.nombre}</option>)}
-            </select>
+            <input className={inputClass} value={tallaNombreInput} onChange={(e) => setTallaNombreInput(e.target.value)} placeholder="Ej: M" />
           </div>
           <div className="md:col-span-3">
             <label className={labelClass}>Proveedor</label>
