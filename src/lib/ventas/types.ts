@@ -71,6 +71,9 @@ export interface Venta {
    */
   cliente_id?: string | null;
 
+  /** Factura electrónica (FAC-XXXXXX) generada al cobrar, si se pidió facturar. */
+  factura_id?: string | null;
+
   /** La venta emite nota de remisión (documento no fiscal). */
   genera_nota_remision?: boolean;
   /** Número de nota de remisión (NR-XXXXXX) si genera_nota_remision. */

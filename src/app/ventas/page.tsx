@@ -361,7 +361,16 @@ export default function VentasPage() {
                             <Printer className="h-3.5 w-3.5 shrink-0" aria-hidden />
                             Imprimir
                           </a>
-                          {v.cliente_id && (
+                          {v.factura_id ? (
+                            <Link
+                              href={`/facturas/${v.factura_id}`}
+                              className={`${BTN_ACCION} border-[#4FAEB2]/40 bg-[#4FAEB2]/[0.08] text-[#3F8E91] hover:border-[#4FAEB2]/60 hover:bg-[#4FAEB2]/[0.16]`}
+                              title="Factura electrónica: estado en SIFEN y KuDE"
+                            >
+                              <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              Factura
+                            </Link>
+                          ) : v.cliente_id ? (
                             <a
                               href={`/api/ventas/${v.id}/factura`}
                               target="_blank"
@@ -372,7 +381,7 @@ export default function VentasPage() {
                               <FileText className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               Factura
                             </a>
-                          )}
+                          ) : null}
                           {v.genera_nota_remision && (
                             <a
                               href={`/api/ventas/${v.id}/ticket?tipo=remision`}
