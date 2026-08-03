@@ -40,6 +40,10 @@ export default function CrearClienteModal({
   const [empresa, setEmpresa] = useState(initialNombre);
   const [contacto, setContacto] = useState(initialNombre);
   const [ruc, setRuc] = useState(initialRuc);
+  // Datos que salen impresos en el documento tributario (SIFEN). Se guardan
+  // aparte del nombre comercial porque suelen diferir.
+  const [nombreFacturacion, setNombreFacturacion] = useState("");
+  const [rucFacturacion, setRucFacturacion] = useState(initialRuc);
   const [documento, setDocumento] = useState("");
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
@@ -66,7 +70,9 @@ export default function CrearClienteModal({
         tipo_cliente: tipo,
         empresa: tipo === "empresa" ? empresa.trim().toUpperCase() : undefined,
         nombre_contacto: contacto.trim().toUpperCase(),
-        ruc: tipo === "empresa" ? (ruc.trim() || undefined) : undefined,
+        nombre_facturacion: nombreFacturacion.trim().toUpperCase() || undefined,
+        // El RUC fiscal manda: es el que valida SIFEN contra el receptor.
+        ruc: rucFacturacion.trim() || (tipo === "empresa" ? ruc.trim() : "") || undefined,
         documento: tipo === "persona" ? (documento.trim() || undefined) : undefined,
         telefono: telefono.trim() || undefined,
         email: email.trim() || undefined,
@@ -85,7 +91,7 @@ export default function CrearClienteModal({
       onCreated({
         id: res.data.id,
         label,
-        ruc: (tipo === "empresa" ? ruc.trim() : documento.trim()) || null,
+        ruc: rucFacturacion.trim() || (tipo === "empresa" ? ruc.trim() : documento.trim()) || null,
         usa_nota_remision: usaNotaRemision,
       });
     } catch (e) {
@@ -167,6 +173,35 @@ export default function CrearClienteModal({
             <div>
               <label className={labelClass}>País</label>
               <input className={`${inputClass} uppercase`} value={pais} onChange={(e) => setPais(e.target.value)} placeholder="País" />
+            </div>
+          </div>
+
+          {/* Datos fiscales: lo que sale impreso en la factura electrónica. */}
+          <div className="rounded-xl border-2 border-slate-200 bg-slate-50/60 p-4">
+            <p className={labelClass}>Datos para factura</p>
+            <p className="-mt-0.5 mb-3 text-xs leading-relaxed text-slate-500">
+              Lo que sale en el documento tributario (SIFEN). Si lo dejás vacío, se factura con el
+              nombre y el documento cargados arriba.
+            </p>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label className={labelClass}>Nombre para factura</label>
+                <input
+                  className={`${inputClass} uppercase`}
+                  value={nombreFacturacion}
+                  onChange={(e) => setNombreFacturacion(e.target.value)}
+                  placeholder="Nombre como figura en el documento"
+                />
+              </div>
+              <div>
+                <label className={labelClass}>RUC</label>
+                <input
+                  className={inputClass}
+                  value={rucFacturacion}
+                  onChange={(e) => setRucFacturacion(e.target.value)}
+                  placeholder="80000000-1"
+                />
+              </div>
             </div>
           </div>
 

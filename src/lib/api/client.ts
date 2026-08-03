@@ -76,6 +76,8 @@ export async function apiCreateCliente(data: {
   tipo_servicio_cliente?: string;
   empresa?: string;
   nombre_contacto: string;
+  /** Razón social tal cual va en el documento tributario. Si viene vacío, el snapshot cae al nombre del cliente. */
+  nombre_facturacion?: string;
   ruc?: string;
   documento?: string;
   telefono?: string;

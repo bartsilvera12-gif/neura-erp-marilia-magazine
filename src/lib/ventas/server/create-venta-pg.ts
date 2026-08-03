@@ -836,14 +836,14 @@ export async function createVentaTransaccionalPg(
       if (params.clienteId) {
         const cliQ = await sb
           .from("clientes")
-          .select("empresa, nombre, nombre_contacto, ruc")
+          .select("nombre_facturacion, empresa, nombre, nombre_contacto, ruc")
           .eq("id", params.clienteId)
           .eq("empresa_id", params.empresaId)
           .maybeSingle();
         if (cliQ.error) throw new Error(cliQ.error.message);
         const c = cliQ.data as Record<string, string | null> | null;
         if (c) {
-          razonSocial = s(c.empresa) || s(c.nombre_contacto) || s(c.nombre);
+          razonSocial = s(c.nombre_facturacion) || s(c.empresa) || s(c.nombre_contacto) || s(c.nombre);
           rucSnap = s(c.ruc);
         }
       }
