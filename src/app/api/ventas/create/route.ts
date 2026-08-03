@@ -232,6 +232,25 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // Factura electrónica: el POS puede facturar SIN ficha de cliente. Si no hay
+    // cliente_id, el receptor se carga a mano (razón social obligatoria, RUC
+    // opcional para el consumidor final).
+    const emitirFactura = o.emitir_factura === true;
+    const facturaRazonSocial =
+      typeof o.factura_razon_social === "string" && o.factura_razon_social.trim()
+        ? o.factura_razon_social.trim().slice(0, 255)
+        : null;
+    const facturaRuc =
+      typeof o.factura_ruc === "string" && o.factura_ruc.trim()
+        ? o.factura_ruc.trim().slice(0, 50)
+        : null;
+    if (emitirFactura && !clienteId && !facturaRazonSocial) {
+      return NextResponse.json(
+        errorResponse("Para facturar ingresá la razón social o seleccioná un cliente."),
+        { status: 400 }
+      );
+    }
+
     const subtotalDeclarado = Number(o.subtotal);
     const montoIvaDeclarado = Number(o.monto_iva);
     const totalDeclarado = Number(o.total);
@@ -294,7 +313,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const { ventaId, numeroControl, fechaIso, notaRemisionNumero } = await createVentaTransaccionalPg({
+    const {
+      ventaId,
+      numeroControl,
+      fechaIso,
+      notaRemisionNumero,
+      facturaId,
+      numeroFactura,
+      facturaWarning,
+    } = await createVentaTransaccionalPg({
       schema,
       empresaId: auth.empresa_id,
       clienteId,
@@ -314,6 +341,9 @@ export async function POST(request: NextRequest) {
       cajaId: o.caja_id != null && String(o.caja_id).trim() !== "" ? String(o.caja_id) : null,
       usuarioId: auth.usuarioCatalogId ?? null,
       usuarioNombre: auth.nombre ?? auth.user?.email ?? null,
+      emitirFactura,
+      facturaRazonSocial,
+      facturaRuc,
     });
 
     // Vincular el pedido facturado con la venta creada (Caja). Trazabilidad:
@@ -476,7 +506,15 @@ export async function POST(request: NextRequest) {
       nota_remision_numero: notaRemisionNumero,
     });
 
-    return NextResponse.json(successResponse({ venta, nota_remision_numero: notaRemisionNumero }));
+    return NextResponse.json(
+      successResponse({
+        venta,
+        nota_remision_numero: notaRemisionNumero,
+        factura_id: facturaId,
+        numero_factura: numeroFactura,
+        factura_warning: facturaWarning,
+      })
+    );
   } catch (err) {
     // Falta de stock sin autorizar: 409 con el detalle de faltantes para que la UI
     // muestre el modal de confirmación y reintente con permitir_sin_stock=true.

@@ -97,6 +97,14 @@ export interface CreateVentaPgParams {
   /** Usuario que registra la venta (auditoría de movimientos de inventario). */
   usuarioId?: string | null;
   usuarioNombre?: string | null;
+  /** Si true, además de la venta se crea la factura ERP (FAC-XXXXXX) para SIFEN. */
+  emitirFactura?: boolean;
+  /**
+   * Receptor de la factura cargado a mano en el POS. No requiere ficha de
+   * cliente: alcanza con la razón social para poder facturar a un ocasional.
+   */
+  facturaRazonSocial?: string | null;
+  facturaRuc?: string | null;
 }
 
 function recalcTotals(items: CreateVentaItemInput[]) {
@@ -131,7 +139,16 @@ const TOL = 2;
  */
 export async function createVentaTransaccionalPg(
   params: CreateVentaPgParams
-): Promise<{ ventaId: string; numeroControl: string; fechaIso: string; notaRemisionNumero: string | null; cuentaPorCobrarId?: string | null }> {
+): Promise<{
+  ventaId: string;
+  numeroControl: string;
+  fechaIso: string;
+  notaRemisionNumero: string | null;
+  cuentaPorCobrarId?: string | null;
+  facturaId: string | null;
+  numeroFactura: string | null;
+  facturaWarning: string | null;
+}> {
   const items = params.items;
   if (!items.length) {
     throw new Error("La venta debe tener al menos un ítem.");
@@ -577,6 +594,8 @@ export async function createVentaTransaccionalPg(
     } catch {}
   };
 
+  let cuentaPorCobrarId: string | null = null;
+
   try {
     // 6) Insertar items (bulk). Cada item guarda el SNAPSHOT de la
     //    presentacion usada (id, nombre, cantidad_base) y la cantidad total
@@ -761,7 +780,6 @@ export async function createVentaTransaccionalPg(
     // 9) Cuenta por cobrar (solo CRÉDITO con cliente). El saldo inicial = total de la venta;
     //    estado 'pendiente'. NO afecta stock ni movimientos: es cobranza. Un índice único
     //    sobre venta_id impide CxC duplicada si la venta se reintentara.
-    let cuentaPorCobrarId: string | null = null;
     if (params.tipoVenta === "CREDITO" && params.clienteId) {
       const fechaEmision = fechaIso.slice(0, 10);
       let fechaVencimiento: string | null = null;
@@ -791,10 +809,139 @@ export async function createVentaTransaccionalPg(
       if (insCxc.error) throw new Error(insCxc.error.message);
       cuentaPorCobrarId = String((insCxc.data as { id: string }).id);
     }
-
-    return { ventaId, numeroControl, fechaIso, notaRemisionNumero, cuentaPorCobrarId };
   } catch (err) {
     await rollback();
     throw err;
   }
+
+  // 10) Puente Venta → Factura ERP (SIFEN legal). Corre DESPUÉS de que la venta
+  //     quedó firme: crea la factura FAC-XXXXXX con sus líneas y deja
+  //     `ventas.factura_id` linkeado. El detalle /facturas/[id] usa el
+  //     FacturaElectronicaPanel para firmar, enviar a SIFEN e imprimir el KUDE.
+  //
+  //     Best-effort y FUERA del rollback: si el puente falla, la venta ya está
+  //     registrada y no se toca — se devuelve facturaWarning y la UI decide.
+  let facturaId: string | null = null;
+  let numeroFactura: string | null = null;
+  let facturaWarning: string | null = null;
+  if (params.emitirFactura === true) {
+    try {
+      // 10a) Snapshot del receptor. La ficha del cliente da los valores base y
+      //      lo que el cajero haya escrito en el POS pisa (puede corregir la
+      //      razón social sin tocar la ficha). Sin cliente alcanza con el
+      //      texto cargado a mano: facturar no exige ficha.
+      const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : null);
+      let razonSocial: string | null = null;
+      let rucSnap: string | null = null;
+      if (params.clienteId) {
+        const cliQ = await sb
+          .from("clientes")
+          .select("empresa, nombre, nombre_contacto, ruc")
+          .eq("id", params.clienteId)
+          .eq("empresa_id", params.empresaId)
+          .maybeSingle();
+        if (cliQ.error) throw new Error(cliQ.error.message);
+        const c = cliQ.data as Record<string, string | null> | null;
+        if (c) {
+          razonSocial = s(c.empresa) || s(c.nombre_contacto) || s(c.nombre);
+          rucSnap = s(c.ruc);
+        }
+      }
+      razonSocial = s(params.facturaRazonSocial) ?? razonSocial;
+      rucSnap = s(params.facturaRuc) ?? rucSnap;
+      if (!razonSocial) {
+        throw new Error("Falta la razón social del receptor.");
+      }
+
+      // 10b) Próximo FAC-XXXXXX. Best-effort igual que VTA-XXXXXX: el índice
+      //      único (empresa_id, numero_factura) protege contra duplicados.
+      const facMaxQ = await sb
+        .from("facturas")
+        .select("numero_factura")
+        .eq("empresa_id", params.empresaId)
+        .like("numero_factura", "FAC-%")
+        .order("numero_factura", { ascending: false })
+        .limit(1);
+      if (facMaxQ.error) throw new Error(facMaxQ.error.message);
+      let nextFac = 1;
+      const lastFac = (facMaxQ.data?.[0] as { numero_factura?: string } | undefined)?.numero_factura;
+      if (lastFac) {
+        const m = lastFac.match(/^FAC-(\d+)$/);
+        if (m) nextFac = parseInt(m[1], 10) + 1;
+      }
+      numeroFactura = `FAC-${String(nextFac).padStart(6, "0")}`;
+
+      // 10c) Insertar factura. cliente_id queda NULL en la venta sin ficha: la
+      //      identificación fiscal vive en las columnas denormalizadas.
+      const insFac = await sb
+        .from("facturas")
+        .insert({
+          empresa_id: params.empresaId,
+          cliente_id: params.clienteId,
+          numero_factura: numeroFactura,
+          fecha: fechaIso.slice(0, 10),
+          fecha_vencimiento: fechaIso.slice(0, 10),
+          monto: calc.total,
+          saldo: params.tipoVenta === "CREDITO" ? calc.total : 0,
+          estado: params.tipoVenta === "CREDITO" ? "Pendiente" : "Pagado",
+          tipo: params.tipoVenta === "CREDITO" ? "credito" : "contado",
+          moneda: params.moneda,
+          cliente_razon_social: razonSocial,
+          cliente_ruc: rucSnap,
+          observaciones: observacionesFinal,
+          origen_venta_id: ventaId,
+        })
+        .select("id")
+        .single();
+      if (insFac.error) throw new Error(insFac.error.message);
+      facturaId = String((insFac.data as { id: string }).id);
+
+      // 10d) Líneas de la factura. El tipo_iva sale tal cual de la línea de la
+      //      venta (ya viene como 'EXENTA' | '5%' | '10%'), que es el desglose
+      //      que después consume SIFEN.
+      const facItemsRows = items.map((line) => ({
+        empresa_id: params.empresaId,
+        factura_id: facturaId,
+        descripcion: line.producto_nombre,
+        cantidad: line.cantidad,
+        precio_unitario: line.precio_venta,
+        subtotal: line.subtotal,
+        iva: line.monto_iva,
+        tipo_iva: line.tipo_iva,
+        total: line.total_linea,
+      }));
+      const insFacItems = await sb.from("factura_items").insert(facItemsRows);
+      if (insFacItems.error) throw new Error(insFacItems.error.message);
+
+      // 10e) Link venta → factura.
+      const linkUpd = await sb
+        .from("ventas")
+        .update({ factura_id: facturaId })
+        .eq("id", ventaId)
+        .eq("empresa_id", params.empresaId);
+      if (linkUpd.error) throw new Error(linkUpd.error.message);
+    } catch (bridgeErr) {
+      const msg = bridgeErr instanceof Error ? bridgeErr.message : String(bridgeErr);
+      facturaWarning = `Venta creada pero no se pudo generar la factura: ${msg}`;
+      // Rollback SOLO de la factura (los items caen en cascada por FK).
+      if (facturaId) {
+        try {
+          await sb.from("facturas").delete().eq("id", facturaId).eq("empresa_id", params.empresaId);
+        } catch {}
+        facturaId = null;
+      }
+      numeroFactura = null;
+    }
+  }
+
+  return {
+    ventaId,
+    numeroControl,
+    fechaIso,
+    notaRemisionNumero,
+    cuentaPorCobrarId,
+    facturaId,
+    numeroFactura,
+    facturaWarning,
+  };
 }

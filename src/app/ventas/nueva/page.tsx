@@ -178,6 +178,14 @@ export default function NuevaVentaPage() {
   // Nota de remisión: activada si el cliente la usa; toggle manual solo con cliente.
   const [generaNotaRemision, setGeneraNotaRemision] = useState(false);
 
+  // ── Documento de la venta ────────────────────────────────────────────────
+  // "Solo ticket" (no fiscal) o "Factura electrónica" (SIFEN). La factura NO
+  // exige ficha de cliente: alcanza con la razón social escrita acá.
+  type TipoDocumento = "ticket" | "factura";
+  const [tipoDocumento, setTipoDocumento] = useState<TipoDocumento>("ticket");
+  const [facturaRazonSocial, setFacturaRazonSocial] = useState("");
+  const [facturaRuc, setFacturaRuc] = useState("");
+
   // Modal de alta rápida de cliente (crea en el módulo Clientes + lo selecciona).
   const [showCrearCliente, setShowCrearCliente] = useState(false);
 
@@ -194,6 +202,18 @@ export default function NuevaVentaPage() {
       .catch(() => { if (!cancel) { setSaldoFavor(0); setUsarSaldo(0); } });
     return () => { cancel = true; };
   }, [clienteId]);
+
+  /**
+   * Al cambiar el cliente se precargan los datos del receptor de la factura.
+   * Quedan editables: el cajero puede corregirlos sin tocar la ficha.
+   */
+  useEffect(() => {
+    if (!clienteId) { setFacturaRazonSocial(""); setFacturaRuc(""); return; }
+    const c = clientes.find((x) => x.id === clienteId);
+    if (!c) return;
+    setFacturaRazonSocial(c.label);
+    setFacturaRuc(c.ruc ?? "");
+  }, [clienteId, clientes]);
 
   function handleClienteCreado(c: ClienteCreado) {
     setClientes((prev) => [c, ...prev.filter((x) => x.id !== c.id)]);
@@ -611,7 +631,12 @@ export default function NuevaVentaPage() {
   // Condición de venta: si es Crédito, exigir plazo de al menos 1 día y un cliente.
   const plazoDiasNum = parseInt(plazoDias) || 0;
   const creditoValido = tipoVenta === "CONTADO" || (plazoDiasNum >= 1 && !!clienteId);
-  const ventaValida   = items.length > 0 && creditoValido;
+
+  // Factura electrónica: la razón social es lo único obligatorio (el RUC puede
+  // faltar en un consumidor final y la ficha de cliente nunca es requisito).
+  const emitirFactura = tipoDocumento === "factura";
+  const facturaValida = !emitirFactura || facturaRazonSocial.trim().length > 0;
+  const ventaValida   = items.length > 0 && creditoValido && facturaValida;
 
   // Cliente (opcional) — selección + filtrado del buscador.
   const clienteSel = clientes.find((c) => c.id === clienteId) ?? null;
@@ -896,7 +921,9 @@ export default function NuevaVentaPage() {
       const clienteIdFinal = clienteId;
 
       try {
-        ventanaDoc = window.open("", "_blank");
+        // Con factura electrónica no se abre ventana: el flujo sigue en
+        // /facturas/[id], que dispara la firma y el envío a SIFEN.
+        ventanaDoc = emitirFactura ? null : window.open("", "_blank");
         if (ventanaDoc) {
           ventanaDoc.document.write(
             `<!doctype html><meta charset="utf-8"><title>Preparando documento…</title>` +
@@ -935,6 +962,9 @@ export default function NuevaVentaPage() {
           permitirSinStock, pedidoId, pedidoCajaId, cajaId: cajaActivaFinal,
           usarSaldoFavor: saldoAplicado,
           retirarSaldoEfectivo: retirarExcedente ? saldoRestante : 0,
+          emitirFactura,
+          facturaRazonSocial: emitirFactura ? facturaRazonSocial.trim() : null,
+          facturaRuc: emitirFactura ? facturaRuc.trim() || null : null,
           pagos: metodoPago === "mixto"
             ? pagosMixtos.map((p) => ({
                 metodo_pago: p.metodo,
@@ -965,6 +995,21 @@ export default function NuevaVentaPage() {
       // Venta registrada: avisar a la pantalla de Caja (lista "Pedidos por
       // cobrar") para que refresque su cola automáticamente.
       try { const bc = new BroadcastChannel("pedidos-caja"); bc.postMessage("refresh"); bc.close(); } catch { /* navegador sin soporte */ }
+
+      // Factura electrónica: el ticket no se imprime acá. Se salta al detalle de
+      // la factura, que arranca la firma y el envío a SIFEN.
+      if (emitirFactura && resultado.facturaId) {
+        router.push(`/facturas/${resultado.facturaId}?auto=1`);
+        return;
+      }
+      // La factura falló pero la venta ya quedó registrada: se avisa sin navegar
+      // (si se redirige, el cajero no llega a ver el motivo) y se vacía el
+      // carrito para que no se registre dos veces.
+      if (resultado.facturaWarning) {
+        setErrorVenta(`${resultado.facturaWarning} La venta ${resultado.venta.numero_control} quedó registrada.`);
+        setItems([]);
+        return;
+      }
 
       // Documentos de la venta. La nota de remisión se abre además del ticket
       // SOLO si la venta la genera (cliente con usa_nota_remision o toggle activo).
@@ -1172,6 +1217,51 @@ export default function NuevaVentaPage() {
                     <p className="mt-1 text-[11px] text-red-600">La venta a crédito requiere un cliente: seleccioná uno o creá uno nuevo.</p>
                   )}
                   <p className="mt-1 text-[11px] text-slate-500">Al confirmar se genera una cuenta por cobrar por el total.</p>
+                </div>
+              )}
+            </div>
+
+            {/* Documento: ticket no fiscal o factura electrónica (SIFEN) */}
+            <div className="lg:col-span-2">
+              <label className={labelClass}>Documento</label>
+              <SegmentedControl<TipoDocumento>
+                value={tipoDocumento}
+                options={[
+                  { value: "ticket", label: "Solo ticket" },
+                  { value: "factura", label: "Factura electrónica" },
+                ]}
+                onChange={setTipoDocumento}
+              />
+              {emitirFactura && (
+                <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div>
+                    <label className={labelClass}>Razón social *</label>
+                    <input
+                      type="text"
+                      value={facturaRazonSocial}
+                      onChange={(e) => setFacturaRazonSocial(e.target.value)}
+                      placeholder="Ej: Juan Pérez"
+                      className={`${inputClass} ${facturaRazonSocial.trim() === "" ? "border-red-300 bg-red-50" : ""}`}
+                    />
+                    {facturaRazonSocial.trim() === "" && (
+                      <p className="mt-1 text-[11px] text-red-600">Ingresá la razón social para poder facturar.</p>
+                    )}
+                  </div>
+                  <div>
+                    <label className={labelClass}>Nº de RUC</label>
+                    <input
+                      type="text"
+                      value={facturaRuc}
+                      onChange={(e) => setFacturaRuc(e.target.value)}
+                      placeholder="Ej: 80012345-6"
+                      className={inputClass}
+                    />
+                  </div>
+                  <p className="text-[11px] text-gray-400 sm:col-span-2">
+                    {clienteSel
+                      ? "Datos tomados de la ficha del cliente. Podés editarlos para esta factura."
+                      : "No hace falta ficha de cliente: con la razón social alcanza para facturar."}
+                  </p>
                 </div>
               )}
             </div>

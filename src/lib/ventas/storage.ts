@@ -15,7 +15,15 @@ export type FaltanteStock = {
 };
 
 export type ResultadoGuardarVenta =
-  | { success: true; venta: Venta }
+  | {
+      success: true;
+      venta: Venta;
+      /** Factura ERP creada por el puente venta→factura (null si fue "solo ticket"). */
+      facturaId: string | null;
+      numeroFactura: string | null;
+      /** La venta quedó registrada pero la factura no se pudo generar. */
+      facturaWarning: string | null;
+    }
   | { success: false; error: string; faltantes?: FaltanteStock[] };
 
 /** Modalidad del pedido (instancia gastronómica En lo de Mari). */
@@ -90,6 +98,11 @@ export async function saveVenta(
     retirarSaldoEfectivo?: number;
     /** Cobro mixto: varias líneas de pago que suman el total a cobrar. */
     pagos?: PagoLineaInput[] | null;
+    /** Si true, además del ticket se emite la factura electrónica (SIFEN). */
+    emitirFactura?: boolean;
+    /** Receptor de la factura. Sin ficha de cliente alcanza la razón social. */
+    facturaRazonSocial?: string | null;
+    facturaRuc?: string | null;
   }
 ): Promise<ResultadoGuardarVenta> {
   if (!datos.items || datos.items.length === 0) {
@@ -122,12 +135,20 @@ export async function saveVenta(
         caja_id: opts?.cajaId ?? null,
         usar_saldo_favor: opts?.usarSaldoFavor ?? 0,
         retirar_saldo_efectivo: opts?.retirarSaldoEfectivo ?? 0,
+        emitir_factura: opts?.emitirFactura === true,
+        factura_razon_social: opts?.facturaRazonSocial ?? null,
+        factura_ruc: opts?.facturaRuc ?? null,
       }),
     });
 
     const json = (await res.json()) as {
       success?: boolean;
-      data?: { venta?: Venta };
+      data?: {
+        venta?: Venta;
+        factura_id?: string | null;
+        numero_factura?: string | null;
+        factura_warning?: string | null;
+      };
       error?: string;
       faltantes?: FaltanteStock[];
     };
@@ -140,7 +161,13 @@ export async function saveVenta(
       };
     }
 
-    return { success: true, venta: json.data.venta };
+    return {
+      success: true,
+      venta: json.data.venta,
+      facturaId: json.data.factura_id ?? null,
+      numeroFactura: json.data.numero_factura ?? null,
+      facturaWarning: json.data.factura_warning ?? null,
+    };
   } catch (e) {
     const msg = e instanceof Error ? e.message : "Error de red.";
     return { success: false, error: msg };
