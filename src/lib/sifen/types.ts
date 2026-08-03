@@ -504,3 +504,97 @@ export interface SifenConsultaLoteTestResponseData {
   /** Solo con ?debug=1 */
   cuerpo_soap?: string;
 }
+
+// =============================================================================
+// SIFEN Jobs — cola persistente
+// =============================================================================
+
+export type SifenJobEstado =
+  | "pendiente"
+  | "procesando"
+  | "aprobado"
+  | "rechazado"
+  | "error";
+
+export type SifenJobEtapa = "xml" | "firmar" | "enviar" | "consulta_lote";
+
+/** Origen operativo del Job para métricas / auditoría. */
+export type SifenJobOrigen = "auto_venta" | "reintento_manual" | "manual_admin";
+
+/**
+ * Clasificación técnica del error del último intento. Determina si el worker
+ * puede reintentar automáticamente. Sólo `red`, `http_5xx`, `storage`
+ * e `inesperado` son reintentables; el resto pasa directo a `rechazado` o `error`.
+ */
+export type SifenJobTipoError =
+  | "set_rechazo"
+  | "fiscal"
+  | "firma"
+  | "config"
+  | "red"
+  | "http_5xx"
+  | "storage"
+  | "inesperado"
+  /** SET nunca dejó de responder "en proceso" tras N re-encolados de consulta-lote. */
+  | "set_timeout";
+
+/** Cada línea de `intentos_log` — auditoría cronológica. */
+export interface SifenJobIntento {
+  intento: number;
+  at: string;
+  etapa: SifenJobEtapa;
+  tipo_error: SifenJobTipoError | null;
+  mensaje: string | null;
+  tiempo_ms: number | null;
+}
+
+export interface SifenJobDTO {
+  id: string;
+  empresa_id: string;
+  data_schema: string;
+  factura_id: string;
+  factura_electronica_id: string;
+
+  estado: SifenJobEstado;
+  etapa: SifenJobEtapa | null;
+
+  intentos: number;
+  max_intentos_auto: number;
+  intentos_log: SifenJobIntento[];
+
+  codigo_error_set: string | null;
+  codigo_sub_error_set: string | null;
+  mensaje_set: string | null;
+  ultimo_error: string | null;
+  tipo_error: SifenJobTipoError | null;
+
+  respuesta_recibe_lote: Record<string, unknown> | null;
+  respuesta_consulta_lote: Record<string, unknown> | null;
+
+  cdc: string | null;
+  protocolo_lote: string | null;
+
+  tiempo_xml_ms: number | null;
+  tiempo_firmar_ms: number | null;
+  tiempo_enviar_ms: number | null;
+  tiempo_consulta_ms: number | null;
+  tiempo_total_ms: number | null;
+
+  origen: SifenJobOrigen;
+
+  created_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  procesando_desde: string | null;
+  lock_owner: string | null;
+  proximo_reintento_at: string | null;
+
+  /**
+   * Cantidad de veces que el orquestador re-encoló el Job porque SET seguía
+   * respondiendo "en proceso" al consultar-lote. No cuenta como intento
+   * fallido (SET no rechazó nada). Si supera el límite, el Job se cierra en
+   * 'error' con `tipo_error='set_timeout'` — el operador puede consultar
+   * manualmente después.
+   */
+  veces_re_encolado_consulta: number;
+}

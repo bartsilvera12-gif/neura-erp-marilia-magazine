@@ -5,7 +5,11 @@ import { useParams, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import { FacturaElectronicaPanel } from "@/components/sifen/FacturaElectronicaPanel";
-import type { FacturaElectronicaDTO, SifenCancelacionPreviewDTO } from "@/lib/sifen/types";
+import type {
+  FacturaElectronicaDTO,
+  SifenCancelacionPreviewDTO,
+  SifenJobDTO,
+} from "@/lib/sifen/types";
 
 type FacturaApiRow = {
   id: string;
@@ -17,7 +21,7 @@ type FacturaApiRow = {
   estado: string;
   tipo: string;
   moneda: string;
-  cliente_id: string;
+  cliente_id: string | null;
   cliente_display?: string;
 };
 
@@ -28,6 +32,8 @@ type SifenResumen = {
   sifen_plazo_cancelacion_horas: number;
   factura_electronica: FacturaElectronicaDTO | null;
   cancelacion: SifenCancelacionPreviewDTO | null;
+  /** Último Job de la cola SIFEN (emisión automática). */
+  sifen_job: SifenJobDTO | null;
 };
 
 function formatFecha(str: string) {
@@ -163,18 +169,19 @@ function FacturaDetalleInner() {
     <div className="max-w-6xl mx-auto space-y-6 py-6 px-4 sm:px-6 print:px-0 w-full">
       <div className="flex flex-wrap items-start justify-between gap-4 print:hidden">
         <div>
-          <Link
-            href={`/gestion-clientes?cliente=${encodeURIComponent(factura.cliente_id)}`}
-            className="text-xs font-medium text-[#0EA5E9] hover:underline"
-          >
-            ← Gestión de clientes
+          <Link href="/ventas" className="text-xs font-medium text-[#0EA5E9] hover:underline">
+            ← Volver a ventas
           </Link>
           <h1 className="text-2xl font-bold text-slate-900 mt-1">Factura {factura.numero_factura}</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             Cliente:{" "}
-            <Link href={`/clientes/${factura.cliente_id}`} className="text-[#0EA5E9] font-medium hover:underline">
-              {factura.cliente_display ?? "Ver cliente"}
-            </Link>
+            {factura.cliente_id ? (
+              <Link href={`/clientes/${factura.cliente_id}`} className="text-[#0EA5E9] font-medium hover:underline">
+                {factura.cliente_display ?? "Ver cliente"}
+              </Link>
+            ) : (
+              <span className="font-medium text-slate-700">{factura.cliente_display ?? "Consumidor final"}</span>
+            )}
           </p>
         </div>
         <div className="flex gap-2 print:hidden">
@@ -226,7 +233,7 @@ function FacturaDetalleInner() {
 
       <FacturaElectronicaPanel
         facturaId={id}
-        clienteId={factura.cliente_id}
+        clienteId={factura.cliente_id ?? ""}
         facturaComercial={{
           monto: factura.monto,
           saldo: factura.saldo,

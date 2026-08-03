@@ -1,12 +1,13 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import type {
   FacturaElectronicaDTO,
   SifenCancelacionPreviewDTO,
   SifenConsultaLoteUltimaPersistida,
+  SifenJobDTO,
 } from "@/lib/sifen/types";
 import { decodeXmlNumericEntities } from "@/lib/sifen/decode-xml-entities";
 import { SifenEstadoBadge } from "./SifenEstadoBadge";
@@ -19,7 +20,39 @@ type Resumen = {
   sifen_plazo_cancelacion_horas: number;
   factura_electronica: FacturaElectronicaDTO | null;
   cancelacion: SifenCancelacionPreviewDTO | null;
+  /** Último Job de la cola SIFEN para este DE (emisión automática). */
+  sifen_job: SifenJobDTO | null;
 };
+
+/**
+ * Etiqueta del badge de progreso cuando hay un Job async corriendo en el
+ * server. Prefiere `sifen_job.etapa` sobre `estado_sifen` porque la etapa dice
+ * qué está haciendo el worker AHORA, no sólo lo último que persistió.
+ */
+function etiquetaProgresoJob(job: SifenJobDTO | null, estadoSifen: string | null): string | null {
+  if (job) {
+    if (job.estado === "pendiente") return "En cola…";
+    if (job.estado === "procesando") {
+      switch (job.etapa) {
+        case "xml":
+          return "Generando XML…";
+        case "firmar":
+          return "Firmando…";
+        case "enviar":
+          return "Enviando a SET…";
+        case "consulta_lote":
+          return "Esperando respuesta SET…";
+        default:
+          return "Procesando…";
+      }
+    }
+    return null;
+  }
+  // Sin job (flujo sincrónico manual) — mantiene el comportamiento anterior.
+  const st = String(estadoSifen ?? "");
+  if (st === "enviado" || st === "en_proceso") return "En proceso en SET";
+  return null;
+}
 
 /** Una línea operativa; en producción evita jerga de pipeline/XML. */
 function subtituloSifenEjecutivo(resumen: Resumen, debugUi: boolean): string {
@@ -83,9 +116,16 @@ function subtituloSifenEjecutivo(resumen: Resumen, debugUi: boolean): string {
 function ResumenSifenCompacto({ resumen, debugUi }: { resumen: Resumen; debugUi: boolean }) {
   const fe = resumen.factura_electronica;
   const st = fe?.estado_sifen ?? null;
+  const progreso = etiquetaProgresoJob(resumen.sifen_job, st);
   return (
     <div className="flex flex-wrap items-center gap-3 min-w-0">
       <SifenEstadoBadge estadoSifen={st} mostrarPistaEnvioSet={false} className="shrink-0" />
+      {progreso ? (
+        <span className="inline-flex items-center gap-1.5 rounded-full bg-sky-50 px-2.5 py-1 text-[11px] font-semibold text-sky-800 ring-1 ring-sky-200 shrink-0">
+          <span className="h-1.5 w-1.5 rounded-full bg-sky-500 animate-pulse" aria-hidden />
+          {progreso}
+        </span>
+      ) : null}
       <div className="min-w-0 flex-1">
         <p className="text-sm text-slate-600 leading-snug">{subtituloSifenEjecutivo(resumen, debugUi)}</p>
         {!resumen.sifen_config_activa ? (
@@ -184,9 +224,11 @@ export function FacturaElectronicaPanel({
     | "consulta-lote"
     | "cancelar-de"
     | "pipeline"
+    | "reintentar-job"
     | null
   >(null);
   const [flash, setFlash] = useState<{ kind: "ok" | "err"; text: string } | null>(null);
+  const [pollingCortadoPorTimeout, setPollingCortadoPorTimeout] = useState(false);
   const [cancelModal, setCancelModal] = useState<"cancelar" | "reemitir" | null>(null);
   const [motivoCancel, setMotivoCancel] = useState("");
 
@@ -418,6 +460,32 @@ export function FacturaElectronicaPanel({
     }
   };
 
+  /**
+   * Reintentar la emisión encolando un nuevo Job SIFEN. Usa el endpoint
+   * dedicado /sifen/reintentar, que valida que el DE no esté aprobado y deja
+   * origen='reintento_manual' en el histórico.
+   */
+  const reintentarJob = async () => {
+    setFlash(null);
+    setAction("reintentar-job");
+    try {
+      const res = await fetchWithSupabaseSession(
+        `/api/facturas/${facturaId}/sifen/reintentar`,
+        { method: "POST" }
+      );
+      if (!res.ok) {
+        setFlash({ kind: "err", text: await readApiError(res) });
+        return;
+      }
+      setFlash({ kind: "ok", text: "Reintento encolado. Procesando en background…" });
+      await refresh();
+    } catch (e) {
+      setFlash({ kind: "err", text: e instanceof Error ? e.message : "Error de red" });
+    } finally {
+      setAction(null);
+    }
+  };
+
   /** Borrador → XML → firma → envío en una sola acción (mismos endpoints). */
   const ejecutarGenerarYEnviar = async () => {
     setFlash(null);
@@ -511,6 +579,99 @@ export function FacturaElectronicaPanel({
   const fe = resumen?.factura_electronica ?? null;
   const estado = fe?.estado_sifen ?? null;
 
+  // Emisión automática: llegamos con ?auto=1 (redirect desde la venta). En vez
+  // de correr el pipeline client-side (30-35s bloqueando la caja), encolamos un
+  // Job SIFEN server-side y respondemos al toque. El worker ejecuta
+  // xml → firmar → enviar → consulta y el polling de abajo refleja el progreso.
+  const autoDisparadoRef = useRef(false);
+  const autoFlag = searchParams?.get("auto") === "1";
+  useEffect(() => {
+    if (!autoFlag) return;
+    if (autoDisparadoRef.current) return;
+    if (loadingResumen) return;
+    if (!resumen?.sifen_config_activa) return;
+    const estActual = String(estado ?? "");
+    // `error_envio` y `rechazado` cuentan como "no auto-encolar": la respuesta
+    // anterior de SET debe quedar visible. Para reintentar tras un rechazo está
+    // el botón "Reintentar" — si no, con sólo montar el panel se reencolaba y
+    // el mensaje del SET desaparecía sin que nadie lo viera.
+    if (
+      estActual === "aprobado" ||
+      estActual === "cancelado" ||
+      estActual === "rechazado" ||
+      estActual === "error_envio"
+    ) {
+      return;
+    }
+    // Si ya hay un Job vivo, no encolamos otro: el polling muestra el progreso.
+    const jobVivo =
+      resumen.sifen_job &&
+      (resumen.sifen_job.estado === "pendiente" || resumen.sifen_job.estado === "procesando");
+    if (jobVivo) {
+      autoDisparadoRef.current = true;
+      return;
+    }
+    // El ref se marca ANTES del fetch para que el doble montaje de StrictMode
+    // en dev no dispare dos encolados.
+    autoDisparadoRef.current = true;
+    // Fire-and-forget: la UI no se bloquea. Si falla el kickoff, el operador
+    // tiene los botones manuales.
+    void fetchWithSupabaseSession(`/api/facturas/${facturaId}/sifen/encolar`, {
+      method: "POST",
+    })
+      .then(async () => {
+        // Refresh inmediato para que el badge "En cola…" aparezca sin esperar
+        // el primer tick de polling.
+        await refresh();
+      })
+      .catch(() => {
+        /* silencioso: los pasos manuales siguen disponibles */
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoFlag, loadingResumen, estado, resumen?.sifen_job?.id]);
+
+  // Polling cada 5s mientras haya un Job vivo o el DE esté en estado no terminal.
+  // Corta cuando: el DE es terminal; el Job es terminal y el DE no quedó en
+  // 'enviado'/'en_proceso'; o pasaron 90s desde el arranque del polling.
+  const pollingStartedAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!resumen?.sifen_config_activa) return;
+    const st = String(estado ?? "");
+    const jobSt = resumen.sifen_job?.estado ?? null;
+    const deTerminal = st === "aprobado" || st === "cancelado" || st === "rechazado";
+    const jobTerminal =
+      jobSt === "aprobado" || jobSt === "rechazado" || jobSt === "error" || jobSt === null;
+    if (deTerminal) {
+      pollingStartedAtRef.current = null;
+      setPollingCortadoPorTimeout(false);
+      return;
+    }
+    // Sin Job y DE en estado no terminal (flujo manual) → sin polling.
+    if (jobSt == null && !autoFlag) {
+      pollingStartedAtRef.current = null;
+      setPollingCortadoPorTimeout(false);
+      return;
+    }
+    if (jobTerminal && st !== "enviado" && st !== "en_proceso") {
+      pollingStartedAtRef.current = null;
+      setPollingCortadoPorTimeout(false);
+      return;
+    }
+    if (pollingStartedAtRef.current == null) {
+      pollingStartedAtRef.current = Date.now();
+      setPollingCortadoPorTimeout(false);
+    }
+    const start = pollingStartedAtRef.current;
+    if (Date.now() - start > 90_000) {
+      setPollingCortadoPorTimeout(true);
+      return;
+    }
+    const timer = setTimeout(() => {
+      void refresh();
+    }, 5_000);
+    return () => clearTimeout(timer);
+  }, [autoFlag, estado, resumen, refresh]);
+
   const puedeBorrador = Boolean(resumen?.sifen_config_activa) && !fe;
   const puedeGenerarXml =
     Boolean(resumen?.sifen_config_activa) && fe != null && !XML_BLOQUEADOS.has(String(estado));
@@ -541,7 +702,14 @@ export function FacturaElectronicaPanel({
     Boolean(resumen?.sifen_config_activa) &&
     !primaryConsultarLote &&
     (!fe || ["borrador", "generado", "firmado", "error_envio"].includes(stStr));
-  const busy = action !== null;
+  // El worker en background puede estar procesando esta misma factura al mismo
+  // tiempo que el operador aprieta un botón manual: sin este bloqueo, ambos
+  // pueden disparar el mismo POST /sifen/enviar casi simultáneo → dos envíos
+  // reales a SET y el que escribe último pisa el resultado del otro.
+  const jobActivo =
+    resumen?.sifen_job != null &&
+    (resumen.sifen_job.estado === "pendiente" || resumen.sifen_job.estado === "procesando");
+  const busy = action !== null || jobActivo;
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white shadow-sm p-5 sm:p-6 w-full min-w-0">
@@ -573,8 +741,40 @@ export function FacturaElectronicaPanel({
                   {decodeXmlNumericEntities(flash.text)}
                 </div>
               )}
+              {pollingCortadoPorTimeout && jobActivo ? (
+                <div className="rounded-lg text-sm px-3 py-2 bg-amber-50 border border-amber-200 text-amber-900 space-y-1">
+                  <p className="font-semibold">El sistema sigue procesando en background.</p>
+                  <p className="text-xs">
+                    Podés actualizar la página para ver el estado actualizado, o usar los pasos
+                    manuales si preferís emitir ahora.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => void refresh()}
+                    className="text-xs font-semibold underline underline-offset-2 hover:no-underline"
+                  >
+                    Actualizar estado ahora
+                  </button>
+                </div>
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-3">
+                {resumen.sifen_job &&
+                (resumen.sifen_job.estado === "rechazado" ||
+                  resumen.sifen_job.estado === "error") &&
+                stStr !== "aprobado" &&
+                stStr !== "cancelado" &&
+                stStr !== "enviado" &&
+                stStr !== "en_proceso" ? (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => void reintentarJob()}
+                    className="inline-flex items-center justify-center px-5 py-2.5 rounded-lg bg-slate-900 text-white text-sm font-semibold shadow-sm disabled:opacity-45 disabled:cursor-not-allowed hover:bg-slate-800"
+                  >
+                    {action === "reintentar-job" ? "Reintentando…" : "Reintentar"}
+                  </button>
+                ) : null}
                 {stStr === "rechazado" && puedeGenerarXml ? (
                   <button
                     type="button"

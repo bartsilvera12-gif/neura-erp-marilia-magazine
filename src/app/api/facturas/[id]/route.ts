@@ -44,17 +44,24 @@ export async function GET(
       return NextResponse.json(errorResponse("Factura no encontrada"), { status: 404 });
     }
 
-    const row = factura as { cliente_id: string };
-    const { data: cli } = await supabase
-      .from("clientes")
-      .select("nombre_contacto, empresa")
-      .eq("id", row.cliente_id)
-      .maybeSingle();
+    // Venta ocasional: sin ficha, el nombre sale del receptor guardado en la
+    // factura. Filtrar por un uuid nulo lo manda como el texto "null" y falla.
+    const row = factura as { cliente_id: string | null; cliente_razon_social?: string | null };
+    const clienteId = typeof row.cliente_id === "string" && row.cliente_id.trim() ? row.cliente_id.trim() : null;
+    const { data: cli } = clienteId
+      ? await supabase
+          .from("clientes")
+          .select("nombre_contacto, empresa, nombre_facturacion")
+          .eq("id", clienteId)
+          .maybeSingle()
+      : { data: null };
 
-    const c = cli as { nombre_contacto?: string; empresa?: string } | null;
+    const c = cli as { nombre_contacto?: string; empresa?: string; nombre_facturacion?: string } | null;
+    const facturacion = (c?.nombre_facturacion ?? "").trim();
     const empresa = (c?.empresa ?? "").trim();
     const nombre = (c?.nombre_contacto ?? "").trim();
-    const cliente_display = empresa || nombre || "Cliente";
+    const ocasional = (row.cliente_razon_social ?? "").trim();
+    const cliente_display = facturacion || empresa || nombre || ocasional || "Cliente";
 
     return NextResponse.json(
       successResponse({
