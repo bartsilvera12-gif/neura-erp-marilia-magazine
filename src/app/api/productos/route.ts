@@ -91,18 +91,18 @@ export async function GET(request: NextRequest) {
     let query = ctx.supabase
       .from("productos")
       .select(PRODUCTO_COLS, {
-        // count: "planned" usa pg_stats en vez de COUNT(*) exacto.
-        // En tablas grandes (16k+ productos) baja el TTFB de ~1.5s a <100ms.
-        // El total es aproximado (ej. "16.869" puede mostrarse como "16.880"),
-        // suficiente para mostrar paginacion en la UI.
-        count: "planned",
+        // Exacto: el listado muestra "N de M" y con el conteo estimado el
+        // total bailaba entre recargas. A esta escala el COUNT es barato.
+        count: "exact",
       })
       .eq("empresa_id", ctx.auth.empresa_id)
       .eq("activo", true);
 
     if (q) {
-      // Búsqueda por tokens (palabras en cualquier orden) en nombre o sku.
-      query = applyTokenSearch(query, q, ["nombre", "sku"]);
+      // Búsqueda por tokens (palabras en cualquier orden). Incluye el código
+      // del proveedor y el de barras: son los que usa el operador para ubicar
+      // un producto, ya que el SKU es interno y no se muestra.
+      query = applyTokenSearch(query, q, ["nombre", "sku", "codigo_proveedor", "codigo_barras"]);
     }
     if (categoria === "__sin__") {
       query = query.is("categoria_principal_id", null);

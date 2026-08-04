@@ -13,6 +13,7 @@ import { buildXlsxBuffer, xlsxResponseHeaders, nowStamp } from "@/lib/excel/expo
 interface Row {
   nombre: string;
   sku: string;
+  codigo_proveedor: string | null;
   color_nombre: string | null;
   talla_nombre: string | null;
   codigo_barras: string | null;
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   try {
     const { rows } = await pool.query<Row>(
-      `SELECT p.nombre, p.sku, p.color_nombre, p.talla_nombre,
+      `SELECT p.nombre, p.sku, p.codigo_proveedor, p.color_nombre, p.talla_nombre,
               p.codigo_barras, p.codigo_barras_interno,
               c.nombre AS categoria_nombre,
               pr.nombre AS proveedor_nombre,
@@ -69,6 +70,7 @@ export async function GET(request: NextRequest) {
     const buf = buildXlsxBuffer<Row>(rows, [
       { header: "NOMBRE", value: (r) => r.nombre, width: 38 },
       { header: "SKU", value: (r) => r.sku, width: 18 },
+      { header: "CODIGO_PROVEEDOR", value: (r) => r.codigo_proveedor ?? "", width: 18 },
       { header: "COLOR", value: (r) => r.color_nombre ?? "", width: 14 },
       { header: "TALLA", value: (r) => r.talla_nombre ?? "", width: 10 },
       { header: "CODIGO_BARRAS", value: (r) => r.codigo_barras ?? "", width: 24 },

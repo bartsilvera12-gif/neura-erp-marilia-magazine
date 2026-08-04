@@ -191,20 +191,8 @@ const MENU_STRUCTURE: MenuItem[] = [
     href: "/configuracion/explorar-coleccion",
     icon: Sparkles,
   },
-  {
-    key: "sitio_shop_the_look",
-    slug: "configuracion",
-    label: "Shop the look",
-    href: "/configuracion/shop-the-look",
-    icon: Sparkles,
-  },
-  {
-    key: "sitio_instagram",
-    slug: "configuracion",
-    label: "Instagram grid",
-    href: "/configuracion/instagram-grid",
-    icon: Sparkles,
-  },
+  // Shop the look e Instagram grid removidos: el sitio ya no tiene esas
+  // secciones, quedaban como pantallas que no impactaban en ningún lado.
   // Items ocultos en ferreteria (no aplican / duplicados):
   // - Planes: suscripciones, modelo SaaS.
   // - Gestion Clientes: duplicado de Clientes con vista distinta.

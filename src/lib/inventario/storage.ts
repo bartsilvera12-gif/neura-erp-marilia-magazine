@@ -112,18 +112,51 @@ function rowToMovimiento(row: MovimientoRow): MovimientoInventario {
 
 /** Lista productos via API server-side (PG directo, soporta tenants erp_* no expuestos). */
 export async function getProductos(): Promise<Producto[]> {
+  const { productos } = await getProductosPagina({});
+  return productos;
+}
+
+export interface PaginaProductos {
+  productos: Producto[];
+  /** Total que matchea el filtro, independiente de cuántos trajo esta página. */
+  total: number;
+}
+
+/**
+ * Página de productos con búsqueda y filtro resueltos en el servidor.
+ *
+ * El listado completo no sirve a partir de unos miles de items: PostgREST corta
+ * las respuestas en 1.000 filas, así que traer todo y filtrar en el browser
+ * mostraba solo las primeras 1.000 y el resto quedaba invisible.
+ */
+export async function getProductosPagina(opts: {
+  q?: string;
+  categoriaId?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<PaginaProductos> {
   try {
-    const r = await fetch("/api/productos", { credentials: "include", cache: "no-store" });
+    const params = new URLSearchParams();
+    if (opts.q) params.set("q", opts.q);
+    if (opts.categoriaId) params.set("categoria", opts.categoriaId);
+    if (opts.limit != null) params.set("limit", String(opts.limit));
+    if (opts.offset) params.set("offset", String(opts.offset));
+    const qs = params.toString();
+    const r = await fetch("/api/productos" + (qs ? "?" + qs : ""), {
+      credentials: "include",
+      cache: "no-store",
+    });
     const j = await r.json().catch(() => ({}));
     if (!r.ok || !j?.success) {
       console.error("[inventario] getProductos:", (j as { error?: string })?.error ?? r.status);
-      return [];
+      return { productos: [], total: 0 };
     }
-    const list = ((j.data as { productos?: ProductoRow[] }).productos ?? []) as ProductoRow[];
-    return list.map(rowToProducto);
+    const data = j.data as { productos?: ProductoRow[]; total?: number };
+    const list = (data.productos ?? []) as ProductoRow[];
+    return { productos: list.map(rowToProducto), total: Number(data.total ?? list.length) };
   } catch (err) {
     console.error("[inventario] getProductos:", err instanceof Error ? err.message : err);
-    return [];
+    return { productos: [], total: 0 };
   }
 }
 

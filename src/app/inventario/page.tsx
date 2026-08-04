@@ -2,20 +2,14 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { getProductos } from "@/lib/inventario/storage";
-import type { Producto, MetodoValuacion } from "@/lib/inventario/types";
+import { getProductosPagina } from "@/lib/inventario/storage";
+import type { Producto } from "@/lib/inventario/types";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
 import ImportExcelButton from "@/components/ui/ImportExcelButton";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
 
 const inputFilterClass =
   "border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-[#4FAEB2] focus:outline-none";
-
-const metodoBadge: Record<MetodoValuacion, string> = {
-  CPP: "bg-blue-100 text-blue-700",
-  FIFO: "bg-green-100 text-green-700",
-  LIFO: "bg-purple-100 text-purple-700",
-};
 
 function formatGs(valor: number) {
   return `Gs. ${valor.toLocaleString("es-PY")}`;
@@ -34,21 +28,47 @@ function margenColor(margen: number): string {
 
 interface UbicacionMin { id: string; nombre: string; tipo: string }
 
+const POR_PAGINA = 50;
+
 export default function InventarioPage() {
   const { isAdmin } = useIsAdmin();
-  const [todos, setTodos] = useState<Producto[]>([]);
+  const [productos, setProductos] = useState<Producto[]>([]);
+  const [total, setTotal] = useState(0);
   const [ubicaciones, setUbicaciones] = useState<UbicacionMin[]>([]);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [cargando, setCargando] = useState(true);
 
-  // Buscador global del módulo: matchea cualquier coincidencia.
+  // Buscador y paginado: los resuelve el servidor. Con decenas de miles de
+  // productos no se puede traer todo y filtrar en el browser — PostgREST corta
+  // en 1.000 filas y el resto quedaba invisible.
   const [busqueda, setBusqueda] = useState("");
+  const [busquedaAplicada, setBusquedaAplicada] = useState("");
+  const [pagina, setPagina] = useState(0);
+
+  // Debounce del buscador para no pegarle a la API en cada tecla.
+  useEffect(() => {
+    const t = setTimeout(() => {
+      setBusquedaAplicada(busqueda.trim());
+      setPagina(0);
+    }, 350);
+    return () => clearTimeout(t);
+  }, [busqueda]);
 
   useEffect(() => {
     let cancelled = false;
-    getProductos().then((data) => {
-      if (!cancelled) setTodos(data);
-    });
-    // Ubicaciones para el filtro
+    setCargando(true);
+    getProductosPagina({ q: busquedaAplicada, limit: POR_PAGINA, offset: pagina * POR_PAGINA })
+      .then(({ productos: data, total: t }) => {
+        if (cancelled) return;
+        setProductos(data);
+        setTotal(t);
+        setCargando(false);
+      });
+    return () => { cancelled = true; };
+  }, [refreshKey, busquedaAplicada, pagina]);
+
+  useEffect(() => {
+    let cancelled = false;
     fetch("/api/inventario/ubicaciones", { credentials: "include", cache: "no-store" })
       .then((r) => r.json())
       .then((j) => {
@@ -57,26 +77,12 @@ export default function InventarioPage() {
       })
       .catch(() => undefined);
     return () => { cancelled = true; };
-  }, [refreshKey]);
+  }, []);
 
   const ubicacionById = new Map(ubicaciones.map((u) => [u.id, u]));
-
-  const q = busqueda.trim().toLowerCase();
-  const productos = q === "" ? todos : todos.filter((p) => {
-    const ubic = p.ubicacion_principal_id ? ubicacionById.get(p.ubicacion_principal_id) : null;
-    const campos = [
-      p.nombre, p.sku, p.codigo_proveedor, p.color_nombre, p.talla_nombre, p.unidad_medida, p.metodo_valuacion,
-      p.codigo_barras,
-      String(p.costo_promedio), p.costo_promedio.toLocaleString("es-PY"),
-      String(p.precio_venta), p.precio_venta.toLocaleString("es-PY"),
-      p.precio_mayorista != null ? String(p.precio_mayorista) : "",
-      p.precio_mayorista != null ? p.precio_mayorista.toLocaleString("es-PY") : "",
-      p.precio_minorista != null ? String(p.precio_minorista) : "",
-      p.precio_minorista != null ? p.precio_minorista.toLocaleString("es-PY") : "",
-      ubic?.nombre, ubic?.tipo,
-    ];
-    return campos.filter(Boolean).join(" ").toLowerCase().includes(q);
-  });
+  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
+  const desde = total === 0 ? 0 : pagina * POR_PAGINA + 1;
+  const hasta = Math.min((pagina + 1) * POR_PAGINA, total);
 
   return (
     <div className="space-y-8">
@@ -114,7 +120,11 @@ export default function InventarioPage() {
             className={`${inputFilterClass} min-w-[16rem] flex-1`}
           />
           <span className="ml-auto shrink-0 text-sm text-gray-400">
-            {productos.length} de {todos.length} productos
+            {cargando
+              ? "Cargando…"
+              : total === 0
+                ? "Sin productos"
+                : `${desde.toLocaleString("es-PY")}–${hasta.toLocaleString("es-PY")} de ${total.toLocaleString("es-PY")}`}
           </span>
         </div>
 
@@ -235,6 +245,38 @@ export default function InventarioPage() {
 
           </table>
         </div>
+
+        {!cargando && total === 0 && (
+          <p className="py-16 text-center text-sm text-gray-400">
+            {busquedaAplicada
+              ? `No encontramos productos que coincidan con "${busquedaAplicada}".`
+              : "Todavía no hay productos cargados."}
+          </p>
+        )}
+
+        {totalPaginas > 1 && (
+          <div className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4">
+            <button
+              type="button"
+              onClick={() => setPagina((p) => Math.max(0, p - 1))}
+              disabled={pagina === 0 || cargando}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              ← Anterior
+            </button>
+            <span className="text-sm text-gray-500">
+              Página {(pagina + 1).toLocaleString("es-PY")} de {totalPaginas.toLocaleString("es-PY")}
+            </span>
+            <button
+              type="button"
+              onClick={() => setPagina((p) => Math.min(totalPaginas - 1, p + 1))}
+              disabled={pagina >= totalPaginas - 1 || cargando}
+              className="rounded-lg border border-slate-200 px-4 py-2 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Siguiente →
+            </button>
+          </div>
+        )}
 
       </div>
 
