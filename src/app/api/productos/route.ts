@@ -6,6 +6,7 @@ import { normalizeUpperText, normalizeUpperCodigoBarras } from "@/lib/text/norma
 import { applyTokenSearch } from "@/lib/productos/token-search";
 import type { AppSupabaseClient } from "@/lib/supabase/schema";
 import { resolverImagenesPublicas } from "@/lib/inventario/imagen-storage";
+import { siguienteSkuAuto } from "@/lib/inventario/sku-auto";
 
 /**
  * GET/POST de productos via PostgREST (sin pool PG directo) — compatible Hostinger.
@@ -18,7 +19,7 @@ const PRODUCTO_COLS =
   "categoria_principal_id, ubicacion_principal_id, proveedor_principal_id, " +
   "es_vendible, es_insumo, controla_stock, destacado, visible_web, valorizado, unidad_compra, unidad_receta, " +
   "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
-  "color_nombre, talla_nombre, producto_base_id";
+  "color_nombre, talla_nombre, producto_base_id, codigo_proveedor";
 
 function toNumber(v: unknown): unknown {
   return typeof v === "string" ? Number(v) : v;
@@ -155,9 +156,10 @@ export async function POST(request: NextRequest) {
     }
 
     const nombre = normalizeUpperText(body.nombre);
-    const sku = normalizeUpperText(body.sku);
     if (!nombre) return NextResponse.json(errorResponse("El nombre es obligatorio."), { status: 400 });
-    if (!sku) return NextResponse.json(errorResponse("El SKU es obligatorio."), { status: 400 });
+    // El SKU es interno y no se pide al usuario: si no viene, se genera solo.
+    const sku = normalizeUpperText(body.sku) || (await siguienteSkuAuto(sb, empresaId));
+    if (!sku) return NextResponse.json(errorResponse("No se pudo generar el SKU."), { status: 500 });
 
     const codigoBarras = normalizeUpperCodigoBarras(body.codigo_barras);
     const codigoBarrasInterno = codigoBarras != null && body.codigo_barras_interno === true;
@@ -229,6 +231,7 @@ export async function POST(request: NextRequest) {
       categoria_principal_id: categoriaPrincipalId,
       ubicacion_principal_id: ubicacionPrincipalId,
       proveedor_principal_id: proveedorPrincipalId,
+      codigo_proveedor: normalizeUpperText(body.codigo_proveedor) || null,
     };
     if (esVendible !== undefined) insertPayload.es_vendible = esVendible;
     if (esInsumo !== undefined) insertPayload.es_insumo = esInsumo;

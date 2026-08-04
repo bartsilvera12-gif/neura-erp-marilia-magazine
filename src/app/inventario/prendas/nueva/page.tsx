@@ -11,7 +11,6 @@ interface VarianteRow {
   key: string;
   color_nombre: string;
   talla_nombre: string;
-  sku: string;
   stock_actual: string;
   stock_minimo: string;
   precio_costo: string;
@@ -27,9 +26,6 @@ const cellCls = "border border-slate-200 rounded px-2 py-1 text-sm w-full";
 function slug(s: string): string {
   return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-zA-Z0-9]/g, "").toUpperCase();
 }
-function makeSku(nombre: string, color: string, talla: string): string {
-  return [slug(nombre).slice(0, 10), slug(color).slice(0, 3), slug(talla).slice(0, 4)].filter(Boolean).join("-");
-}
 
 export default function NuevaPrendaPage() {
   const router = useRouter();
@@ -39,6 +35,9 @@ export default function NuevaPrendaPage() {
 
   // Datos base de la prenda
   const [nombre, setNombre] = useState("");
+  // Código del catálogo del proveedor. Puede repetirse entre prendas: el
+  // identificador único lo genera el backend.
+  const [codigoProveedor, setCodigoProveedor] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [tipoCorte, setTipoCorte] = useState<"masculino" | "femenino" | "unisex">("unisex");
   const [material, setMaterial] = useState("");
@@ -114,7 +113,6 @@ export default function NuevaPrendaPage() {
         rows.push(existing ?? {
           key,
           color_nombre: cn, talla_nombre: tn,
-          sku: makeSku(nombre, cn, tn),
           stock_actual: defStock, stock_minimo: defStockMin,
           precio_costo: defCosto, precio_mayorista: defMayorista, precio_minorista: defMinorista, precio_venta: defVenta,
           codigo_barras: "",
@@ -135,7 +133,6 @@ export default function NuevaPrendaPage() {
     setError(null); setOkMsg(null);
     if (!nombre.trim()) { setError("El nombre de la prenda es obligatorio."); return; }
     if (variantes.length === 0) { setError("Generá al menos una variante."); return; }
-    if (variantes.some((v) => !v.sku.trim())) { setError("Todas las variantes necesitan SKU."); return; }
     setSubmitting(true);
     try {
       const body = {
@@ -148,7 +145,7 @@ export default function NuevaPrendaPage() {
         },
         variantes: variantes.map((v) => ({
           nombre: `${nombre} - ${v.color_nombre} - ${v.talla_nombre}`,
-          sku: v.sku,
+          codigo_proveedor: codigoProveedor.trim() || null,
           color_nombre: v.color_nombre, talla_nombre: v.talla_nombre,
           stock_actual: Number(v.stock_actual) || 0, stock_minimo: Number(v.stock_minimo) || 0,
           precio_costo: Number(v.precio_costo) || 0, precio_mayorista: Number(v.precio_mayorista) || 0,
@@ -233,6 +230,12 @@ export default function NuevaPrendaPage() {
           <div className="md:col-span-2">
             <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
             <input className={inputCls} value={nombre} onChange={(e) => setNombre(e.target.value)} placeholder="Ej: Blusa manga corta" />
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">
+              Código del proveedor <span className="text-gray-400">(puede repetirse)</span>
+            </label>
+            <input className={inputCls} value={codigoProveedor} onChange={(e) => setCodigoProveedor(e.target.value)} placeholder="Ej: 03765" />
           </div>
           <div>
             <label className="block text-xs text-gray-500 mb-1">Tipo de corte</label>
@@ -425,7 +428,7 @@ export default function NuevaPrendaPage() {
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-gray-500 text-left">
-                  <th className="p-1">Color</th><th className="p-1">Talla</th><th className="p-1">SKU</th>
+                  <th className="p-1">Color</th><th className="p-1">Talla</th>
                   <th className="p-1">Stock</th><th className="p-1">St.mín</th>
                   <th className="p-1">Costo</th><th className="p-1">Mayorista</th><th className="p-1">Minorista</th><th className="p-1">Venta</th>
                   <th className="p-1">Cód. barras</th><th className="p-1"></th>
@@ -436,7 +439,6 @@ export default function NuevaPrendaPage() {
                   <tr key={v.key} className="border-t border-slate-100">
                     <td className="p-1">{v.color_nombre}</td>
                     <td className="p-1">{v.talla_nombre}</td>
-                    <td className="p-1"><input className={cellCls + " font-mono"} value={v.sku} onChange={(e) => updateVar(v.key, { sku: e.target.value })} /></td>
                     <td className="p-1 w-16"><input className={cellCls} value={v.stock_actual} onChange={(e) => updateVar(v.key, { stock_actual: e.target.value })} /></td>
                     <td className="p-1 w-16"><input className={cellCls} value={v.stock_minimo} onChange={(e) => updateVar(v.key, { stock_minimo: e.target.value })} /></td>
                     <td className="p-1 w-20"><input className={cellCls} value={v.precio_costo} onChange={(e) => updateVar(v.key, { precio_costo: e.target.value })} /></td>

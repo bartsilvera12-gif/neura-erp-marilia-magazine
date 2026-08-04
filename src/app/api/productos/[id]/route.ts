@@ -13,7 +13,8 @@ const PRODUCTO_COLS =
   "codigo_barras, codigo_barras_interno, imagen_path, imagen_url, " +
   "categoria_principal_id, ubicacion_principal_id, proveedor_principal_id, " +
   "es_vendible, es_insumo, controla_stock, destacado, visible_web, valorizado, unidad_compra, unidad_receta, " +
-  "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta";
+  "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
+  "color_nombre, talla_nombre, codigo_proveedor";
 
 function toNumber(v: unknown): unknown {
   return typeof v === "string" ? Number(v) : v;
@@ -97,6 +98,15 @@ export async function PATCH(
     const patch: Record<string, unknown> = {};
     if (body.nombre !== undefined) patch.nombre = normalizeUpperText(body.nombre);
     if (body.sku !== undefined) patch.sku = normalizeUpperText(body.sku);
+    if (body.codigo_proveedor !== undefined) {
+      patch.codigo_proveedor = normalizeUpperText(body.codigo_proveedor) || null;
+    }
+    if (body.color_nombre !== undefined) {
+      patch.color_nombre = normalizeUpperText(body.color_nombre) || null;
+    }
+    if (body.talla_nombre !== undefined) {
+      patch.talla_nombre = normalizeUpperText(body.talla_nombre) || null;
+    }
     if (body.costo_promedio !== undefined) patch.costo_promedio = Number(body.costo_promedio) || 0;
     if (body.precio_venta !== undefined) patch.precio_venta = Number(body.precio_venta) || 0;
     // stock_actual NO va en el patch directo: se ajusta con auditoría (genera un

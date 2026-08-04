@@ -38,6 +38,7 @@ interface ProductoRow {
   precio_minorista?: number | string | null;
   color_nombre?: string | null;
   talla_nombre?: string | null;
+  codigo_proveedor?: string | null;
 }
 
 interface MovimientoRow {
@@ -86,6 +87,7 @@ function rowToProducto(row: ProductoRow): Producto {
     precio_minorista: row.precio_minorista != null ? Number(row.precio_minorista) : null,
     color_nombre: row.color_nombre ?? null,
     talla_nombre: row.talla_nombre ?? null,
+    codigo_proveedor: row.codigo_proveedor ?? null,
   };
 }
 

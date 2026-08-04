@@ -6,6 +6,7 @@ import { API_ERRORS } from "@/lib/api/errors";
 import { getChatPostgresPool, quoteSchemaTable } from "@/lib/supabase/chat-pg-pool";
 import { assertAllowedChatDataSchema } from "@/lib/supabase/chat-data-schema";
 import { normalizeUpperText, normalizeUpperCodigoBarras } from "@/lib/text/normalize";
+import { siguientesSkusAuto } from "@/lib/inventario/sku-auto";
 
 const TIPO_CORTE = ["masculino", "femenino", "unisex"] as const;
 const ESTADOS = ["activo", "agotado", "discontinuado"] as const;
@@ -17,6 +18,7 @@ interface VarianteIn {
   talla_id?: string | null;
   color_nombre?: string | null;
   talla_nombre?: string | null;
+  codigo_proveedor?: string | null;
   stock_actual?: number | string;
   stock_minimo?: number | string;
   precio_costo?: number | string;
@@ -62,9 +64,14 @@ export async function POST(request: NextRequest) {
   const tipoCorte = TIPO_CORTE.includes(base.tipo_corte as typeof TIPO_CORTE[number]) ? (base.tipo_corte as string) : "unisex";
   const estado = ESTADOS.includes(base.estado as typeof ESTADOS[number]) ? (base.estado as string) : "activo";
   if (variantes.length === 0) return NextResponse.json(errorResponse("Agregá al menos una variante (color/talla)."), { status: 400 });
-  for (const v of variantes) {
-    if (!normalizeUpperText(v.sku)) return NextResponse.json(errorResponse("Cada variante necesita un SKU."), { status: 400 });
-  }
+
+  // El SKU es interno y no lo carga el usuario: se autogenera correlativo para
+  // las variantes que vengan sin uno.
+  const faltanSku = variantes.filter((v) => !normalizeUpperText(v.sku)).length;
+  const skusAuto = faltanSku > 0
+    ? await siguientesSkusAuto(ctx.supabase, empresaId, faltanSku)
+    : [];
+  let skuAutoIdx = 0;
 
   const pool = getChatPostgresPool();
   if (!pool) return NextResponse.json(errorResponse("Pool de Postgres no disponible."), { status: 500 });
@@ -126,7 +133,7 @@ export async function POST(request: NextRequest) {
 
     const creadas: { id: string; sku: string }[] = [];
     for (const v of variantes) {
-      const sku = normalizeUpperText(v.sku);
+      const sku = normalizeUpperText(v.sku) || skusAuto[skuAutoIdx++];
       const nombreVar = normalizeUpperText(v.nombre) || nombreBase;
       const stock = num(v.stock_actual);
       const costo = num(v.precio_costo);
@@ -140,28 +147,29 @@ export async function POST(request: NextRequest) {
         const val = bool(v[f]) ?? baseFlags[f];
         if (val !== undefined) flags.push({ col: f, val });
       }
+      const codigoProveedor = normalizeUpperText(v.codigo_proveedor) || null;
       const flagCols = flags.map((f) => `, ${f.col}`).join("");
-      const flagPlaceholders = flags.map((_, i) => `,$${20 + i}::boolean`).join("");
+      const flagPlaceholders = flags.map((_, i) => `,$${21 + i}::boolean`).join("");
       const ins = await client.query<{ id: string }>(
         `INSERT INTO ${tProd} (
            empresa_id, nombre, sku, costo_promedio, precio_venta, stock_actual, stock_minimo,
            unidad_medida, metodo_valuacion, codigo_barras, codigo_barras_interno,
            categoria_principal_id, ubicacion_principal_id, proveedor_principal_id,
            producto_base_id, color_id, talla_id, precio_costo, precio_mayorista, precio_minorista,
-           color_nombre, talla_nombre${flagCols}
+           color_nombre, talla_nombre, codigo_proveedor${flagCols}
          ) VALUES (
            $1::uuid,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric,
            'UNIDAD','CPP',$8,false,
            $9::uuid,$10::uuid,$11::uuid,
            $12::uuid,$13::uuid,$14::uuid,$15::numeric,$16::numeric,$17::numeric,
-           $18,$19${flagPlaceholders}
+           $18,$19,$20${flagPlaceholders}
          ) RETURNING id`,
         [
           empresaId, nombreVar, sku, costo, num(v.precio_venta), stock, num(v.stock_minimo),
           cb, categoriaId, v.ubicacion_principal_id ? String(v.ubicacion_principal_id) : null, proveedorId,
           baseId, v.color_id ? String(v.color_id) : null, v.talla_id ? String(v.talla_id) : null,
           costo, num(v.precio_mayorista), num(v.precio_minorista),
-          colorNombre, tallaNombre,
+          colorNombre, tallaNombre, codigoProveedor,
           ...flags.map((f) => f.val),
         ]
       );

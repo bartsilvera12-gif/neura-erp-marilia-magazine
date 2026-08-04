@@ -5,7 +5,15 @@ export type OrigenMovimiento = "compra" | "venta" | "ajuste_manual" | "inventari
 export interface Producto {
   id: string;
   nombre: string;
+  /**
+   * Identificador interno. Se genera solo y es único por empresa: es lo que
+   * usan la caja, el escáner y el importador para saber qué fila tocar.
+   * No se muestra ni se edita — para el código del catálogo usar
+   * `codigo_proveedor`, que sí puede repetirse.
+   */
   sku: string;
+  /** Código del proveedor/fábrica. Puede repetirse entre productos. */
+  codigo_proveedor?: string | null;
   costo_promedio: number;
   precio_venta: number;            // precio minorista
   /** Precio mayorista (opcional, informativo — no se aplica automáticamente en ventas). */

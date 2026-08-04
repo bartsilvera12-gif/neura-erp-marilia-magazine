@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
 import SelectFromList from "@/components/inventario/SelectFromList";
@@ -16,14 +16,6 @@ const inputClass =
   "w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#4FAEB2] focus:outline-none bg-white text-sm";
 const labelClass = "block text-sm font-medium text-slate-700 mb-2";
 
-/** Normaliza un texto a token alfanumérico en mayúsculas (para SKU). */
-function token(s: string, max: number): string {
-  return (s || "")
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-zA-Z0-9]/g, "")
-    .toUpperCase()
-    .slice(0, max);
-}
 
 /** Calcula el dígito verificador EAN-13 sobre 12 dígitos. */
 function ean13Check(d12: string): number {
@@ -60,7 +52,9 @@ export default function NuevoItemPage() {
   const [precioVenta, setPrecioVenta] = useState("");
   const [stockActual, setStockActual] = useState("");
   const [stockMinimo, setStockMinimo] = useState("");
-  const [sku, setSku] = useState("");
+  // Código del catálogo del proveedor. Puede repetirse: el SKU interno único
+  // lo genera el backend.
+  const [codigoProveedor, setCodigoProveedor] = useState("");
   const [codigoBarras, setCodigoBarras] = useState("");
   const [proveedorId, setProveedorId] = useState<string | null>(null);
   const [ubicacionId, setUbicacionId] = useState<string | null>(null);
@@ -73,11 +67,6 @@ export default function NuevoItemPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
-
-  // Picker "Ver SKUs existentes"
-  const [skuPickerOpen, setSkuPickerOpen] = useState(false);
-  const [skuQuery, setSkuQuery] = useState("");
-  const skuPickerRef = useRef<HTMLDivElement>(null);
 
   // Imagen
   const [imagenFile, setImagenFile] = useState<File | null>(null);
@@ -107,62 +96,10 @@ export default function NuevoItemPage() {
     return () => { cancel = true; };
   }, []);
 
-  // Cerrar picker al clic fuera
-  useEffect(() => {
-    function onDown(e: MouseEvent) {
-      if (skuPickerRef.current && !skuPickerRef.current.contains(e.target as Node)) setSkuPickerOpen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    return () => document.removeEventListener("mousedown", onDown);
-  }, []);
-
-  const categoriaById = useMemo(() => new Map(categorias.map((c) => [c.id, c])), [categorias]);
-
-  const skusExistentes = useMemo(
-    () => new Set(productos.map((p) => p.sku.trim().toLowerCase()).filter(Boolean)),
-    [productos]
-  );
   const codigosExistentes = useMemo(
     () => new Set(productos.map((p) => (p.codigo_barras ?? "").trim()).filter(Boolean)),
     [productos]
   );
-
-  const skuFiltrados = useMemo(() => {
-    const q = skuQuery.trim().toLowerCase();
-    const base = productos;
-    const arr = !q ? base : base.filter((p) =>
-      p.sku.toLowerCase().includes(q) ||
-      p.nombre.toLowerCase().includes(q) ||
-      (p.color_nombre ?? "").toLowerCase().includes(q) ||
-      (p.talla_nombre ?? "").toLowerCase().includes(q)
-    );
-    return arr.slice(0, 50);
-  }, [productos, skuQuery]);
-
-  function generarSku() {
-    setError(null);
-    const cat = categoriaId ? token(categoriaById.get(categoriaId)?.nombre ?? "", 4) : "";
-    const col = token(colorNombreInput, 3);
-    const tal = token(tallaNombreInput, 4);
-    const partes = ["MC", cat || token(nombre, 4) || "ITEM", col, tal].filter(Boolean);
-    const prefijo = partes.join("-");
-    // Secuencia: busca el mayor -NNN ya usado con ese prefijo y suma 1.
-    let max = 0;
-    for (const s of skusExistentes) {
-      const up = s.toUpperCase();
-      if (up.startsWith(prefijo + "-")) {
-        const m = up.slice(prefijo.length + 1).match(/^(\d{1,4})$/);
-        if (m) max = Math.max(max, parseInt(m[1], 10));
-      }
-    }
-    let n = max + 1;
-    let candidato = `${prefijo}-${String(n).padStart(3, "0")}`;
-    while (skusExistentes.has(candidato.toLowerCase())) {
-      n += 1;
-      candidato = `${prefijo}-${String(n).padStart(3, "0")}`;
-    }
-    setSku(candidato);
-  }
 
   function generarCodigo() {
     setError(null);
@@ -175,11 +112,6 @@ export default function NuevoItemPage() {
   function handleCodigoChange(e: React.ChangeEvent<HTMLInputElement>) {
     // Solo numérico.
     setCodigoBarras(e.target.value.replace(/\D/g, "").slice(0, 14));
-  }
-
-  function copiarSkuDesde(p: Producto) {
-    setSku(p.sku);
-    setSkuPickerOpen(false);
   }
 
   function handleImagenChange(e: React.ChangeEvent<HTMLInputElement>) {
@@ -198,15 +130,7 @@ export default function NuevoItemPage() {
     setError(null); setOkMsg(null);
 
     const nombreT = nombre.trim();
-    const skuT = sku.trim();
     if (!nombreT) { setError("El nombre del ítem es obligatorio."); return; }
-    if (!skuT) { setError("El SKU es obligatorio. Podés generarlo con “Generar SKU”."); return; }
-
-    // SKU único
-    if (skusExistentes.has(skuT.toLowerCase())) {
-      setError(`El SKU "${skuT}" ya existe. Generá uno nuevo o editá el actual.`);
-      return;
-    }
     // Código de barras: opcional, pero si se carga debe ser numérico 8–14 y único.
     const cb = codigoBarras.trim();
     if (cb) {
@@ -233,7 +157,7 @@ export default function NuevoItemPage() {
         },
         variantes: [{
           nombre: nombreVar,
-          sku: skuT,
+          codigo_proveedor: codigoProveedor.trim() || null,
           color_nombre: colorNombre || null,
           talla_nombre: tallaNombre || null,
           stock_actual: Number(stockActual) || 0,
@@ -342,33 +266,18 @@ export default function NuevoItemPage() {
           </div>
         </div>
 
-        {/* SKU asistido */}
+        {/* Código del proveedor: el del catálogo, puede repetirse */}
         <div className="border-t border-slate-100 pt-6">
-          <label className={labelClass}>SKU *</label>
-          <div className="flex flex-wrap items-center gap-2">
-            <input className={`${inputClass} uppercase font-mono max-w-xs`} value={sku} onChange={(e) => setSku(e.target.value.toUpperCase())} placeholder="MC-CAT-COLOR-TALLA-001" />
-            <button type="button" onClick={generarSku} className="text-sm font-medium text-sky-700 border border-sky-200 hover:bg-sky-50 px-3 py-2 rounded-lg">Generar SKU</button>
-            <div className="relative" ref={skuPickerRef}>
-              <button type="button" onClick={() => setSkuPickerOpen((o) => !o)} className="text-sm font-medium text-slate-600 border border-slate-200 hover:bg-slate-50 px-3 py-2 rounded-lg">Ver SKUs existentes</button>
-              {skuPickerOpen && (
-                <div className="absolute z-50 mt-1 w-[28rem] max-w-[80vw] bg-white border border-slate-200 rounded-lg shadow-lg p-2">
-                  <input autoFocus value={skuQuery} onChange={(e) => setSkuQuery(e.target.value)} placeholder="Buscar SKU, nombre, color o talla…" className={`${inputClass} mb-2`} />
-                  <div className="max-h-72 overflow-y-auto">
-                    {skuFiltrados.length === 0 ? (
-                      <p className="px-2 py-4 text-center text-xs text-gray-400">Sin coincidencias.</p>
-                    ) : skuFiltrados.map((p) => (
-                      <button type="button" key={p.id} onClick={() => copiarSkuDesde(p)} className="w-full text-left px-2 py-1.5 rounded hover:bg-slate-50 flex items-center justify-between gap-3">
-                        <span className="font-mono text-xs text-slate-700">{p.sku}</span>
-                        <span className="flex-1 truncate text-xs text-slate-500">{p.nombre}</span>
-                        <span className="text-[11px] text-slate-400 shrink-0">{[p.color_nombre, p.talla_nombre].filter(Boolean).join(" · ") || "—"}</span>
-                      </button>
-                    ))}
-                  </div>
-                  <p className="mt-1 px-2 text-[11px] text-gray-400">Al elegir uno se copia al campo para editarlo (no se duplica). Si guardás un SKU repetido, se bloquea.</p>
-                </div>
-              )}
-            </div>
-          </div>
+          <label className={labelClass}>Código del proveedor</label>
+          <input
+            className={`${inputClass} uppercase font-mono max-w-xs`}
+            value={codigoProveedor}
+            onChange={(e) => setCodigoProveedor(e.target.value.toUpperCase())}
+            placeholder="Ej: 03765"
+          />
+          <p className="mt-1 text-[11px] text-gray-400">
+            El código del catálogo del proveedor. Puede repetirse entre productos.
+          </p>
         </div>
 
         {/* Código de barras */}

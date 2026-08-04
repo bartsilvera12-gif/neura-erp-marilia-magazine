@@ -65,7 +65,7 @@ export default function InventarioPage() {
   const productos = q === "" ? todos : todos.filter((p) => {
     const ubic = p.ubicacion_principal_id ? ubicacionById.get(p.ubicacion_principal_id) : null;
     const campos = [
-      p.nombre, p.sku, p.color_nombre, p.talla_nombre, p.unidad_medida, p.metodo_valuacion,
+      p.nombre, p.sku, p.codigo_proveedor, p.color_nombre, p.talla_nombre, p.unidad_medida, p.metodo_valuacion,
       p.codigo_barras,
       String(p.costo_promedio), p.costo_promedio.toLocaleString("es-PY"),
       String(p.precio_venta), p.precio_venta.toLocaleString("es-PY"),
@@ -110,7 +110,7 @@ export default function InventarioPage() {
             type="search"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar en inventario: nombre, SKU, color, talla, precio, ubicación…"
+            placeholder="Buscar en inventario: nombre, código, color, talla, precio, ubicación…"
             className={`${inputFilterClass} min-w-[16rem] flex-1`}
           />
           <span className="ml-auto shrink-0 text-sm text-gray-400">
@@ -126,7 +126,7 @@ export default function InventarioPage() {
               <tr className="bg-slate-50 text-slate-600 text-sm font-semibold">
                 <th className="py-3 pl-4 pr-3 font-medium w-16">Foto</th>
                 <th className="py-3 pr-4 font-medium">Nombre</th>
-                <th className="py-3 pr-4 font-medium">SKU</th>
+                <th className="py-3 pr-4 font-medium">Código</th>
                 <th className="py-3 pr-4 font-medium">Color</th>
                 <th className="py-3 pr-4 font-medium">Talla</th>
                 <th className="py-3 pr-4 font-medium">Costo Prom.</th>
@@ -160,7 +160,9 @@ export default function InventarioPage() {
                       )}
                     </td>
                     <td className="py-4 pr-4 font-medium text-gray-800">{p.nombre}</td>
-                    <td className="py-4 pr-4 text-gray-500 font-mono">{p.sku}</td>
+                    <td className="py-4 pr-4 text-gray-500 font-mono">
+                      {p.codigo_proveedor ?? <span className="text-gray-300">—</span>}
+                    </td>
                     <td className="py-4 pr-4 text-gray-600">{p.color_nombre ?? <span className="text-gray-300">—</span>}</td>
                     <td className="py-4 pr-4 text-gray-600">{p.talla_nombre ?? <span className="text-gray-300">—</span>}</td>
                     <td className="py-4 pr-4 text-gray-700">{formatGs(p.costo_promedio)}</td>
