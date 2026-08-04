@@ -14,6 +14,8 @@ export interface Producto {
   sku: string;
   /** Código del proveedor/fábrica. Puede repetirse entre productos. */
   codigo_proveedor?: string | null;
+  /** Público del producto. null = todavía sin clasificar. */
+  genero?: "mujer" | "hombre" | "unisex" | null;
   costo_promedio: number;
   precio_venta: number;            // precio minorista
   /** Precio mayorista (opcional, informativo — no se aplica automáticamente en ventas). */

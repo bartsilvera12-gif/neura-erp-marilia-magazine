@@ -40,7 +40,9 @@ export default function InventarioPage() {
   const [ubicaciones, setUbicaciones] = useState<UbicacionMin[]>([]);
   const [categorias, setCategorias] = useState<CategoriaMin[]>([]);
   const [categoriaId, setCategoriaId] = useState("");
+  const [genero, setGenero] = useState("");
   const [porPagina, setPorPagina] = useState(50);
+  const [asignando, setAsignando] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [cargando, setCargando] = useState(true);
   const [borrando, setBorrando] = useState<string | null>(null);
@@ -67,6 +69,7 @@ export default function InventarioPage() {
     getProductosPagina({
       q: busquedaAplicada,
       categoriaId,
+      genero,
       limit: porPagina,
       offset: pagina * porPagina,
     }).then(({ productos: data, total: t }) => {
@@ -76,7 +79,7 @@ export default function InventarioPage() {
       setCargando(false);
     });
     return () => { cancelled = true; };
-  }, [refreshKey, busquedaAplicada, categoriaId, pagina, porPagina]);
+  }, [refreshKey, busquedaAplicada, categoriaId, genero, pagina, porPagina]);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,6 +128,46 @@ export default function InventarioPage() {
     }
   }
 
+  /**
+   * Asigna el género a TODOS los que matchean el filtro, no solo a la página.
+   * Es lo que hace manejable clasificar un catálogo de 24.000 variantes.
+   */
+  async function asignarGeneroMasivo(valor: "mujer" | "hombre" | "unisex") {
+    const alcance = categoriaId
+      ? `los ${total.toLocaleString("es-PY")} productos de esta categoría`
+      : busquedaAplicada
+        ? `los ${total.toLocaleString("es-PY")} resultados de "${busquedaAplicada}"`
+        : `los ${total.toLocaleString("es-PY")} productos sin clasificar`;
+    if (!window.confirm(`¿Marcar ${alcance} como "${valor}"?`)) return;
+
+    setAsignando(true);
+    try {
+      const r = await fetch("/api/inventario/productos/genero-masivo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          genero: valor,
+          categoria: categoriaId || undefined,
+          q: busquedaAplicada || undefined,
+          soloSinClasificar: genero === "__sin__",
+        }),
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.success) {
+        alert(j?.error || "No se pudo asignar el género.");
+        return;
+      }
+      alert(`Listo: ${Number(j.data?.actualizados ?? 0).toLocaleString("es-PY")} productos marcados como "${valor}".`);
+      setRefreshKey((k) => k + 1);
+    } catch {
+      alert("No se pudo asignar el género. Revisá la conexión.");
+    } finally {
+      setAsignando(false);
+    }
+  }
+
+  const puedeAsignar = Boolean(categoriaId || busquedaAplicada || genero === "__sin__");
   const ubicacionById = new Map(ubicaciones.map((u) => [u.id, u]));
   const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
   const desde = total === 0 ? 0 : pagina * porPagina + 1;
@@ -195,10 +238,25 @@ export default function InventarioPage() {
             </select>
           </label>
 
-          {(categoriaId || busquedaAplicada) && (
+          <label className="flex items-center gap-2 text-sm text-gray-500">
+            Género
+            <select
+              value={genero}
+              onChange={(e) => { setGenero(e.target.value); setPagina(0); }}
+              className={inputFilterClass}
+            >
+              <option value="">Todos</option>
+              <option value="mujer">Mujer</option>
+              <option value="hombre">Hombre</option>
+              <option value="unisex">Unisex</option>
+              <option value="__sin__">Sin clasificar</option>
+            </select>
+          </label>
+
+          {(categoriaId || busquedaAplicada || genero) && (
             <button
               type="button"
-              onClick={() => { setCategoriaId(""); setBusqueda(""); setPagina(0); }}
+              onClick={() => { setCategoriaId(""); setBusqueda(""); setGenero(""); setPagina(0); }}
               className="text-sm font-medium text-[#4FAEB2] hover:text-[#3F8E91] hover:underline"
             >
               Limpiar filtros
@@ -215,6 +273,27 @@ export default function InventarioPage() {
         </div>
 
 
+        {/* Clasificación masiva: aplica a todo el filtro, no a la página. */}
+        {puedeAsignar && total > 0 && (
+          <div className="mb-5 flex flex-wrap items-center gap-3 rounded-lg border border-[#4FAEB2]/30 bg-[#4FAEB2]/[0.06] px-4 py-3">
+            <span className="text-sm text-slate-700">
+              Marcar los <strong>{total.toLocaleString("es-PY")}</strong> productos filtrados como:
+            </span>
+            {(["mujer", "hombre", "unisex"] as const).map((g) => (
+              <button
+                key={g}
+                type="button"
+                disabled={asignando}
+                onClick={() => asignarGeneroMasivo(g)}
+                className="rounded-lg border border-[#4FAEB2] bg-white px-3 py-1.5 text-xs font-semibold text-[#3F8E91] transition-colors hover:bg-[#4FAEB2] hover:text-white disabled:opacity-40"
+              >
+                {g === "mujer" ? "Mujer" : g === "hombre" ? "Hombre" : "Unisex"}
+              </button>
+            ))}
+            {asignando && <span className="text-xs text-slate-500">Asignando…</span>}
+          </div>
+        )}
+
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
 
@@ -225,6 +304,7 @@ export default function InventarioPage() {
                 <th className="py-3 pr-4 font-medium">Código</th>
                 <th className="py-3 pr-4 font-medium">Color</th>
                 <th className="py-3 pr-4 font-medium">Talla</th>
+                <th className="py-3 pr-4 font-medium">Género</th>
                 <th className="py-3 pr-4 font-medium">Costo Prom.</th>
                 <th className="py-3 pr-4 font-medium">Precio Venta</th>
                 <th className="py-3 pr-4 font-medium text-center">Stock</th>
@@ -261,6 +341,15 @@ export default function InventarioPage() {
                     </td>
                     <td className="py-4 pr-4 text-gray-600">{p.color_nombre ?? <span className="text-gray-300">—</span>}</td>
                     <td className="py-4 pr-4 text-gray-600">{p.talla_nombre ?? <span className="text-gray-300">—</span>}</td>
+                    <td className="py-4 pr-4">
+                      {p.genero ? (
+                        <span className="inline-block rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-medium capitalize text-slate-600">
+                          {p.genero}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
+                    </td>
                     <td className="py-4 pr-4 text-gray-700">{formatGs(p.costo_promedio)}</td>
                     <td className="py-4 pr-4 text-gray-700">{formatGs(p.precio_venta)}</td>
                     <td className="py-4 pr-4 text-center">

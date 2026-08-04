@@ -34,6 +34,7 @@ export default function EditarProductoPage() {
     stock_minimo: "",
     unidad_medida: "",
     metodo_valuacion: "CPP" as MetodoValuacion,
+    genero: "" as "" | "mujer" | "hombre" | "unisex",
   });
   const [imagenPath, setImagenPath] = useState<string | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
@@ -119,6 +120,7 @@ export default function EditarProductoPage() {
         stock_minimo: String(p.stock_minimo),
         unidad_medida: p.unidad_medida,
         metodo_valuacion: p.metodo_valuacion,
+        genero: (p.genero ?? "") as "" | "mujer" | "hombre" | "unisex",
       });
       setCodigoOriginal(p.codigo_barras ?? null);
       setImagenPath(p.imagen_path ?? null);
@@ -234,6 +236,7 @@ export default function EditarProductoPage() {
         stock_minimo: parseInt(form.stock_minimo) || 0,
         unidad_medida: form.unidad_medida.trim().toUpperCase(),
         metodo_valuacion: form.metodo_valuacion,
+        genero: form.genero || null,
         categoria_principal_id: categoriaId,
         ubicacion_principal_id: ubicacionId,
         proveedor_principal_id: proveedorId,
@@ -400,6 +403,21 @@ export default function EditarProductoPage() {
               <span className="text-xs text-gray-400">Opcional</span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-12 gap-5">
+              <div className="md:col-span-4 min-w-0">
+                <label className={labelClass}>Género</label>
+                <select
+                  name="genero"
+                  value={form.genero ?? ""}
+                  onChange={handleChange}
+                  className={inputClass}
+                >
+                  <option value="">Sin clasificar</option>
+                  <option value="mujer">Mujer</option>
+                  <option value="hombre">Hombre</option>
+                  <option value="unisex">Unisex</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-400">Define en qué sección del sitio aparece.</p>
+              </div>
               <div className="md:col-span-4 min-w-0">
                 <label className={labelClass}>Categoría principal</label>
                 <SelectFromList

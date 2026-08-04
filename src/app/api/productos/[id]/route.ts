@@ -14,7 +14,7 @@ const PRODUCTO_COLS =
   "categoria_principal_id, ubicacion_principal_id, proveedor_principal_id, " +
   "es_vendible, es_insumo, controla_stock, destacado, visible_web, valorizado, unidad_compra, unidad_receta, " +
   "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
-  "color_nombre, talla_nombre, codigo_proveedor";
+  "color_nombre, talla_nombre, codigo_proveedor, genero";
 
 function toNumber(v: unknown): unknown {
   return typeof v === "string" ? Number(v) : v;
@@ -106,6 +106,10 @@ export async function PATCH(
     }
     if (body.talla_nombre !== undefined) {
       patch.talla_nombre = normalizeUpperText(body.talla_nombre) || null;
+    }
+    if (body.genero !== undefined) {
+      const g = String(body.genero ?? "").toLowerCase();
+      patch.genero = ["mujer", "hombre", "unisex"].includes(g) ? g : null;
     }
     if (body.costo_promedio !== undefined) patch.costo_promedio = Number(body.costo_promedio) || 0;
     if (body.precio_venta !== undefined) patch.precio_venta = Number(body.precio_venta) || 0;

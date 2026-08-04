@@ -39,6 +39,7 @@ interface ProductoRow {
   color_nombre?: string | null;
   talla_nombre?: string | null;
   codigo_proveedor?: string | null;
+  genero?: string | null;
 }
 
 interface MovimientoRow {
@@ -88,6 +89,7 @@ function rowToProducto(row: ProductoRow): Producto {
     color_nombre: row.color_nombre ?? null,
     talla_nombre: row.talla_nombre ?? null,
     codigo_proveedor: row.codigo_proveedor ?? null,
+    genero: (row.genero as Producto["genero"]) ?? null,
   };
 }
 
@@ -132,6 +134,8 @@ export interface PaginaProductos {
 export async function getProductosPagina(opts: {
   q?: string;
   categoriaId?: string;
+  /** "mujer" | "hombre" | "unisex" | "__sin__" (sin clasificar). */
+  genero?: string;
   limit?: number;
   offset?: number;
 }): Promise<PaginaProductos> {
@@ -139,6 +143,7 @@ export async function getProductosPagina(opts: {
     const params = new URLSearchParams();
     if (opts.q) params.set("q", opts.q);
     if (opts.categoriaId) params.set("categoria", opts.categoriaId);
+    if (opts.genero) params.set("genero", opts.genero);
     if (opts.limit != null) params.set("limit", String(opts.limit));
     if (opts.offset) params.set("offset", String(opts.offset));
     const qs = params.toString();
@@ -274,6 +279,7 @@ export async function updateProducto(
   if (datos.stock_minimo !== undefined) body.stock_minimo = datos.stock_minimo;
   if (datos.unidad_medida !== undefined) body.unidad_medida = datos.unidad_medida;
   if (datos.metodo_valuacion !== undefined) body.metodo_valuacion = datos.metodo_valuacion;
+  if (datos.genero !== undefined) body.genero = datos.genero;
   if (datos.codigo_barras !== undefined) body.codigo_barras = datos.codigo_barras ?? null;
   if (datos.codigo_barras_interno !== undefined) body.codigo_barras_interno = datos.codigo_barras_interno;
   if (datos.imagen_path !== undefined) body.imagen_path = datos.imagen_path ?? null;

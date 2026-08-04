@@ -19,7 +19,7 @@ const PRODUCTO_COLS =
   "categoria_principal_id, ubicacion_principal_id, proveedor_principal_id, " +
   "es_vendible, es_insumo, controla_stock, destacado, visible_web, valorizado, unidad_compra, unidad_receta, " +
   "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
-  "color_nombre, talla_nombre, producto_base_id, codigo_proveedor";
+  "color_nombre, talla_nombre, producto_base_id, codigo_proveedor, genero";
 
 function toNumber(v: unknown): unknown {
   return typeof v === "string" ? Number(v) : v;
@@ -113,6 +113,14 @@ export async function GET(request: NextRequest) {
     // traerlos sin depender de que entren en la primera página.
     if (searchParams.get("destacado") === "true") {
       query = query.eq("destacado", true);
+    }
+    // Género: "__sin__" trae los que faltan clasificar, que es la vista que
+    // usa el operador para ir completando el catálogo.
+    const genero = searchParams.get("genero");
+    if (genero === "__sin__") {
+      query = query.is("genero", null);
+    } else if (genero) {
+      query = query.eq("genero", genero);
     }
 
     query = query.order("nombre");
