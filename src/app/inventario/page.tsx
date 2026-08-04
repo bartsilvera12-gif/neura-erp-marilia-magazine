@@ -27,14 +27,20 @@ function margenColor(margen: number): string {
 }
 
 interface UbicacionMin { id: string; nombre: string; tipo: string }
+interface CategoriaMin { id: string; nombre: string }
 
-const POR_PAGINA = 50;
+// "Todos" no se ofrece a propósito: PostgREST corta en 1.000 filas, así que
+// con 24.000 productos daría una lista incompleta sin avisar.
+const OPCIONES_POR_PAGINA = [10, 50, 100, 500];
 
 export default function InventarioPage() {
   const { isAdmin } = useIsAdmin();
   const [productos, setProductos] = useState<Producto[]>([]);
   const [total, setTotal] = useState(0);
   const [ubicaciones, setUbicaciones] = useState<UbicacionMin[]>([]);
+  const [categorias, setCategorias] = useState<CategoriaMin[]>([]);
+  const [categoriaId, setCategoriaId] = useState("");
+  const [porPagina, setPorPagina] = useState(50);
   const [refreshKey, setRefreshKey] = useState(0);
   const [cargando, setCargando] = useState(true);
 
@@ -57,15 +63,19 @@ export default function InventarioPage() {
   useEffect(() => {
     let cancelled = false;
     setCargando(true);
-    getProductosPagina({ q: busquedaAplicada, limit: POR_PAGINA, offset: pagina * POR_PAGINA })
-      .then(({ productos: data, total: t }) => {
-        if (cancelled) return;
-        setProductos(data);
-        setTotal(t);
-        setCargando(false);
-      });
+    getProductosPagina({
+      q: busquedaAplicada,
+      categoriaId,
+      limit: porPagina,
+      offset: pagina * porPagina,
+    }).then(({ productos: data, total: t }) => {
+      if (cancelled) return;
+      setProductos(data);
+      setTotal(t);
+      setCargando(false);
+    });
     return () => { cancelled = true; };
-  }, [refreshKey, busquedaAplicada, pagina]);
+  }, [refreshKey, busquedaAplicada, categoriaId, pagina, porPagina]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,13 +86,21 @@ export default function InventarioPage() {
         setUbicaciones((j.data?.ubicaciones ?? []) as UbicacionMin[]);
       })
       .catch(() => undefined);
+    fetch("/api/inventario/categorias", { credentials: "include", cache: "no-store" })
+      .then((r) => r.json())
+      .then((j) => {
+        if (cancelled || !j?.success) return;
+        const lista = (j.data?.categorias ?? []) as CategoriaMin[];
+        setCategorias([...lista].sort((a, b) => a.nombre.localeCompare(b.nombre, "es")));
+      })
+      .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
 
   const ubicacionById = new Map(ubicaciones.map((u) => [u.id, u]));
-  const totalPaginas = Math.max(1, Math.ceil(total / POR_PAGINA));
-  const desde = total === 0 ? 0 : pagina * POR_PAGINA + 1;
-  const hasta = Math.min((pagina + 1) * POR_PAGINA, total);
+  const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
+  const desde = total === 0 ? 0 : pagina * porPagina + 1;
+  const hasta = Math.min((pagina + 1) * porPagina, total);
 
   return (
     <div className="space-y-8">
@@ -116,9 +134,49 @@ export default function InventarioPage() {
             type="search"
             value={busqueda}
             onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar en inventario: nombre, código, color, talla, precio, ubicación…"
+            placeholder="Buscar por nombre, código de proveedor o código de barras…"
             className={`${inputFilterClass} min-w-[16rem] flex-1`}
           />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 mb-5">
+          <label className="flex items-center gap-2 text-sm text-gray-500">
+            Categoría
+            <select
+              value={categoriaId}
+              onChange={(e) => { setCategoriaId(e.target.value); setPagina(0); }}
+              className={`${inputFilterClass} min-w-[12rem]`}
+            >
+              <option value="">Todas ({categorias.length})</option>
+              {categorias.map((c) => (
+                <option key={c.id} value={c.id}>{c.nombre}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="flex items-center gap-2 text-sm text-gray-500">
+            Mostrar
+            <select
+              value={porPagina}
+              onChange={(e) => { setPorPagina(Number(e.target.value)); setPagina(0); }}
+              className={inputFilterClass}
+            >
+              {OPCIONES_POR_PAGINA.map((n) => (
+                <option key={n} value={n}>{n}</option>
+              ))}
+            </select>
+          </label>
+
+          {(categoriaId || busquedaAplicada) && (
+            <button
+              type="button"
+              onClick={() => { setCategoriaId(""); setBusqueda(""); setPagina(0); }}
+              className="text-sm font-medium text-[#4FAEB2] hover:text-[#3F8E91] hover:underline"
+            >
+              Limpiar filtros
+            </button>
+          )}
+
           <span className="ml-auto shrink-0 text-sm text-gray-400">
             {cargando
               ? "Cargando…"
