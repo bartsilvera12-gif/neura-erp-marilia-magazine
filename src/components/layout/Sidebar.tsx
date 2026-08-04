@@ -187,7 +187,7 @@ const MENU_STRUCTURE: MenuItem[] = [
   {
     key: "sitio_explorar_coleccion",
     slug: "configuracion",
-    label: "Explorar la colección",
+    label: "Recién llegados",
     href: "/configuracion/explorar-coleccion",
     icon: Sparkles,
   },

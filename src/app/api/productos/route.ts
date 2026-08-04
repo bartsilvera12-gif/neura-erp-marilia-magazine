@@ -109,6 +109,11 @@ export async function GET(request: NextRequest) {
     } else if (categoria) {
       query = query.eq("categoria_principal_id", categoria);
     }
+    // Solo destacados: lo usa la pantalla del carrusel del home, que necesita
+    // traerlos sin depender de que entren en la primera página.
+    if (searchParams.get("destacado") === "true") {
+      query = query.eq("destacado", true);
+    }
 
     query = query.order("nombre");
     if (limit > 0) {

@@ -43,6 +43,7 @@ export default function InventarioPage() {
   const [porPagina, setPorPagina] = useState(50);
   const [refreshKey, setRefreshKey] = useState(0);
   const [cargando, setCargando] = useState(true);
+  const [borrando, setBorrando] = useState<string | null>(null);
 
   // Buscador y paginado: los resuelve el servidor. Con decenas de miles de
   // productos no se puede traer todo y filtrar en el browser — PostgREST corta
@@ -96,6 +97,33 @@ export default function InventarioPage() {
       .catch(() => undefined);
     return () => { cancelled = true; };
   }, []);
+
+  /**
+   * Baja lógica: el producto deja de aparecer pero se conserva la fila, porque
+   * las ventas y los movimientos de stock la referencian.
+   */
+  async function borrarProducto(p: Producto) {
+    const detalle = [p.color_nombre, p.talla_nombre].filter(Boolean).join(" · ");
+    const ok = window.confirm(
+      `¿Quitar "${p.nombre}"${detalle ? ` (${detalle})` : ""} del inventario?\n\n` +
+      "Deja de aparecer en el listado y en el sitio. El historial de ventas se conserva."
+    );
+    if (!ok) return;
+    setBorrando(p.id);
+    try {
+      const r = await fetch(`/api/productos/${p.id}`, { method: "DELETE", credentials: "include" });
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j?.success) {
+        alert(j?.error || "No se pudo quitar el producto.");
+        return;
+      }
+      setRefreshKey((k) => k + 1);
+    } catch {
+      alert("No se pudo quitar el producto. Revisá la conexión.");
+    } finally {
+      setBorrando(null);
+    }
+  }
 
   const ubicacionById = new Map(ubicaciones.map((u) => [u.id, u]));
   const totalPaginas = Math.max(1, Math.ceil(total / porPagina));
@@ -288,13 +316,25 @@ export default function InventarioPage() {
                       />
                     </td>
                     <td className="py-4 pl-2 pr-4 text-right">
-                      <Link
-                        href={`/inventario/${p.id}/editar`}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-[#4FAEB2] hover:bg-[#3F8E91] text-white text-xs font-semibold px-3 py-1.5 transition-colors shadow-sm"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                        Editar
-                      </Link>
+                      <div className="flex items-center justify-end gap-1.5">
+                        <Link
+                          href={`/inventario/${p.id}/editar`}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-[#4FAEB2] hover:bg-[#3F8E91] text-white text-xs font-semibold px-3 py-1.5 transition-colors shadow-sm"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                          Editar
+                        </Link>
+                        <button
+                          type="button"
+                          disabled={borrando === p.id}
+                          onClick={() => borrarProducto(p)}
+                          title="Quitar del inventario"
+                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-200 bg-white text-red-600 hover:bg-red-50 hover:border-red-300 text-xs font-semibold px-2.5 py-1.5 transition-colors disabled:opacity-40"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+                          {borrando === p.id ? "…" : "Borrar"}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );

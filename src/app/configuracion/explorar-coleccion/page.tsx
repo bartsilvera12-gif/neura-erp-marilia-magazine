@@ -1,15 +1,15 @@
 "use client";
 
 /**
- * Configuración → Explorar la colección.
+ * Configuración → Recién llegados.
  *
- * Controla el carrusel "Explorar la colección" del home del sitio público.
+ * Controla el carrusel "Recién llegados" del home del sitio público.
  * No hay tabla propia: la sección se arma con los productos que tienen
  * `destacado = true` en inventario, así que esta pantalla es una vista
  * enfocada sobre ese flag (agregar, sacar y ver cómo va a quedar).
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ConfirmModal from "@/components/ui/ConfirmModal";
 
 interface Producto {
@@ -26,31 +26,38 @@ const inputCls =
   "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-[#4FAEB2]";
 
 export default function ExplorarColeccionPage() {
-  const [productos, setProductos] = useState<Producto[]>([]);
+  const [destacados, setDestacados] = useState<Producto[]>([]);
+  const [candidatos, setCandidatos] = useState<Producto[]>([]);
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState("");
   const [guardando, setGuardando] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [aQuitar, setAQuitar] = useState<Producto | null>(null);
 
+  const mapear = (rows: Array<Record<string, unknown>>): Producto[] =>
+    rows.map((x) => ({
+      id: String(x.id),
+      nombre: String(x.nombre ?? ""),
+      sku: String(x.sku ?? ""),
+      precio_venta: Number(x.precio_venta ?? 0),
+      imagen_url: (x.imagen_url as string | null) ?? null,
+      destacado: x.destacado === true,
+      visible_web: x.visible_web !== false,
+    }));
+
+  async function pedir(qs: string): Promise<Producto[]> {
+    const r = await fetch("/api/productos?" + qs, { credentials: "include" });
+    const j = await r.json();
+    if (!r.ok || !j?.success) throw new Error(j?.error ?? "No se pudieron cargar los productos.");
+    return mapear((j.data?.productos ?? []) as Array<Record<string, unknown>>);
+  }
+
+  /** Los del carrusel: se piden filtrados, no dependen de caer en la 1ª página. */
   async function cargar() {
     setLoading(true);
     setErr(null);
     try {
-      const r = await fetch("/api/productos?limit=500", { credentials: "include" });
-      const j = await r.json();
-      if (!r.ok || !j?.success) throw new Error(j?.error ?? "No se pudieron cargar los productos.");
-      setProductos(
-        ((j.data?.productos ?? []) as Array<Record<string, unknown>>).map((x) => ({
-          id: String(x.id),
-          nombre: String(x.nombre ?? ""),
-          sku: String(x.sku ?? ""),
-          precio_venta: Number(x.precio_venta ?? 0),
-          imagen_url: (x.imagen_url as string | null) ?? null,
-          destacado: x.destacado === true,
-          visible_web: x.visible_web !== false,
-        }))
-      );
+      setDestacados(await pedir("destacado=true&limit=500"));
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Error de red");
     } finally {
@@ -58,6 +65,20 @@ export default function ExplorarColeccionPage() {
     }
   }
   useEffect(() => { cargar(); }, []);
+
+  // Candidatos: la búsqueda la resuelve el servidor. Con 24.000 productos,
+  // filtrar sobre una página traída de antemano no encontraba casi nada.
+  useEffect(() => {
+    const q = busqueda.trim();
+    if (!q) { setCandidatos([]); return; }
+    let cancel = false;
+    const t = setTimeout(() => {
+      pedir("q=" + encodeURIComponent(q) + "&limit=40")
+        .then((rows) => { if (!cancel) setCandidatos(rows.filter((p) => !p.destacado)); })
+        .catch(() => { if (!cancel) setCandidatos([]); });
+    }, 350);
+    return () => { cancel = true; clearTimeout(t); };
+  }, [busqueda]);
 
   async function setDestacado(p: Producto, destacado: boolean) {
     if (guardando) return;
@@ -72,7 +93,12 @@ export default function ExplorarColeccionPage() {
       });
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j?.success) throw new Error(j?.error ?? "No se pudo actualizar el producto.");
-      setProductos((prev) => prev.map((x) => (x.id === p.id ? { ...x, destacado } : x)));
+      if (destacado) {
+        setDestacados((prev) => [...prev, { ...p, destacado: true }].sort((a, b) => a.nombre.localeCompare(b.nombre)));
+        setCandidatos((prev) => prev.filter((x) => x.id !== p.id));
+      } else {
+        setDestacados((prev) => prev.filter((x) => x.id !== p.id));
+      }
       setAQuitar(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : "No se pudo actualizar el producto.");
@@ -81,29 +107,16 @@ export default function ExplorarColeccionPage() {
     }
   }
 
-  const destacados = useMemo(
-    () => productos.filter((p) => p.destacado).sort((a, b) => a.nombre.localeCompare(b.nombre)),
-    [productos]
-  );
-
-  const candidatos = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    return productos
-      .filter((p) => !p.destacado)
-      .filter((p) => !q || p.nombre.toLowerCase().includes(q) || p.sku.toLowerCase().includes(q))
-      .slice(0, 40);
-  }, [productos, busqueda]);
-
   /** Un destacado que no está publicado nunca llega al sitio. */
   const ocultos = destacados.filter((p) => !p.visible_web);
 
   return (
     <div className="p-8 max-w-6xl mx-auto">
       <div className="mb-6">
-        <h1 className="text-2xl font-semibold text-slate-900">Explorar la colección</h1>
+        <h1 className="text-2xl font-semibold text-slate-900">Recién llegados</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Carrusel del home del sitio. Muestra los productos marcados como destacados, ordenados por
-          nombre.
+          Carrusel de la portada del sitio, debajo de &ldquo;Los más elegidos&rdquo;. Muestra los
+          productos marcados como <strong>Destacado</strong> en Inventario, ordenados por nombre.
         </p>
       </div>
 
@@ -181,12 +194,14 @@ export default function ExplorarColeccionPage() {
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre o SKU…"
+          placeholder="Buscar por nombre, código de proveedor o código de barras…"
           className={inputCls}
         />
         <div className="mt-3 max-h-96 overflow-y-auto border border-slate-100 rounded-lg divide-y divide-slate-100">
-          {loading ? (
-            <p className="px-3 py-4 text-sm text-slate-400">Cargando…</p>
+          {!busqueda.trim() ? (
+            <p className="px-3 py-4 text-center text-xs text-slate-400">
+              Escribí para buscar entre todos los productos del catálogo.
+            </p>
           ) : candidatos.length === 0 ? (
             <p className="px-3 py-4 text-center text-xs text-slate-400">Sin coincidencias.</p>
           ) : (
