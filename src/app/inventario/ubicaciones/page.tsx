@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import ExportExcelButton from "@/components/ui/ExportExcelButton";
 import ImportExcelButton from "@/components/ui/ImportExcelButton";
 import { useIsAdmin } from "@/lib/auth/use-is-admin";
@@ -15,14 +15,30 @@ interface Ubicacion {
   activo: boolean;
 }
 
-const TIPOS = ["deposito","salon","pasillo","gondola","estante","zona","otro"] as const;
+const inputClass =
+  "w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none";
+
+const TIPOS: { value: string; label: string; icono: string; tono: string }[] = [
+  { value: "deposito", label: "Depósito", icono: "🏢", tono: "bg-sky-50 text-sky-700" },
+  { value: "salon",    label: "Salón",    icono: "🛍️", tono: "bg-amber-50 text-amber-700" },
+  { value: "pasillo",  label: "Pasillo",  icono: "↔️", tono: "bg-violet-50 text-violet-700" },
+  { value: "gondola",  label: "Góndola",  icono: "📦", tono: "bg-emerald-50 text-emerald-700" },
+  { value: "estante",  label: "Estante",  icono: "📚", tono: "bg-teal-50 text-teal-700" },
+  { value: "zona",     label: "Zona",     icono: "📍", tono: "bg-rose-50 text-rose-700" },
+  { value: "otro",     label: "Otro",     icono: "•",  tono: "bg-slate-100 text-slate-600" },
+];
+const tipoInfo = (t: string | null | undefined) =>
+  TIPOS.find((x) => x.value === t) ?? TIPOS[TIPOS.length - 1];
 
 export default function UbicacionesPage() {
   const { isAdmin } = useIsAdmin();
   const [items, setItems] = useState<Ubicacion[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [busqueda, setBusqueda] = useState("");
 
+  // Modal alta
+  const [abierto, setAbierto] = useState(false);
   const [nombre, setNombre] = useState("");
   const [codigo, setCodigo] = useState("");
   const [tipo, setTipo] = useState<string>("deposito");
@@ -45,6 +61,25 @@ export default function UbicacionesPage() {
   }
   useEffect(() => { load(); }, []);
 
+  const filtradas = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    if (!q) return items;
+    return items.filter((u) => {
+      const parent = items.find((i) => i.id === u.parent_id)?.nombre ?? "";
+      return [u.nombre, u.codigo, tipoInfo(u.tipo).label, parent].filter(Boolean)
+        .join(" ").toLowerCase().includes(q);
+    });
+  }, [items, busqueda]);
+
+  function abrirAlta() {
+    setError(null);
+    setNombre("");
+    setCodigo("");
+    setTipo("deposito");
+    setParentId("");
+    setAbierto(true);
+  }
+
   async function handleCrear(e: React.FormEvent) {
     e.preventDefault();
     if (!nombre.trim() || creating) return;
@@ -66,7 +101,7 @@ export default function UbicacionesPage() {
       if (!r.ok || !j?.success) {
         setError(j?.error ?? "No se pudo crear.");
       } else {
-        setNombre(""); setCodigo(""); setTipo("deposito"); setParentId("");
+        setAbierto(false);
         await load();
       }
     } catch (e) {
@@ -90,14 +125,17 @@ export default function UbicacionesPage() {
 
   return (
     <div className="space-y-8">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-gray-800">Depósitos y ubicaciones</h1>
+          <Link href="/inventario" className="text-sm text-sky-600 hover:underline">
+            ← Volver a inventario
+          </Link>
+          <h1 className="mt-2 text-3xl font-bold text-gray-800">Depósitos y ubicaciones</h1>
           <p className="text-gray-600">
             Donde se almacena físicamente cada producto: depósitos, salones, pasillos, góndolas, estantes, zonas.
           </p>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap gap-2">
           <ExportExcelButton url="/api/inventario/ubicaciones/export" />
           <ImportExcelButton
             entidad="Ubicaciones"
@@ -108,120 +146,201 @@ export default function UbicacionesPage() {
             visible={isAdmin}
             onCompleted={load}
           />
-          <Link href="/inventario" className="text-sm text-sky-700 hover:text-sky-900 underline">
-            ← Volver a Inventario
-          </Link>
+          <button
+            type="button"
+            onClick={abrirAlta}
+            className="rounded-lg bg-[#0EA5E9] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#0284C7]"
+          >
+            + Nueva ubicación
+          </button>
         </div>
       </div>
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm p-6 max-w-3xl">
-        <p className="text-xs text-gray-400 mb-3 uppercase tracking-wide font-semibold">
-          Nueva ubicación
-        </p>
-        <form onSubmit={handleCrear} className="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
-          <div className="md:col-span-2">
-            <label className="block text-xs text-gray-600 mb-1">Nombre</label>
-            <input
-              value={nombre}
-              onChange={(e) => setNombre(e.target.value)}
-              placeholder="Ej: Depósito central"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Código (opcional)</label>
-            <input
-              value={codigo}
-              onChange={(e) => setCodigo(e.target.value)}
-              placeholder="Ej: DEP-01"
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-600 mb-1">Tipo</label>
-            <select
-              value={tipo}
-              onChange={(e) => setTipo(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              {TIPOS.map((t) => <option key={t} value={t}>{t}</option>)}
-            </select>
-          </div>
-          <div className="md:col-span-3">
-            <label className="block text-xs text-gray-600 mb-1">Ubicación padre (opcional)</label>
-            <select
-              value={parentId}
-              onChange={(e) => setParentId(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
-            >
-              <option value="">— ninguna —</option>
-              {items.filter((i) => i.activo).map((i) => (
-                <option key={i.id} value={i.id}>{i.nombre} ({i.tipo})</option>
-              ))}
-            </select>
-          </div>
-          <div className="md:col-span-4">
-            <button
-              type="submit"
-              disabled={creating || !nombre.trim()}
-              className="bg-[#4FAEB2] hover:bg-[#3F8E91] text-white text-sm px-4 py-2 rounded-lg disabled:opacity-50"
-            >
-              {creating ? "Creando..." : "Crear ubicación"}
-            </button>
-          </div>
-        </form>
-        {error && <p className="mt-2 text-xs text-red-700">{error}</p>}
-      </div>
+      {error && !abierto && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">{error}</div>
+      )}
 
-      <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
-        {loading ? (
-          <p className="p-6 text-sm text-gray-400">Cargando...</p>
-        ) : items.length === 0 ? (
-          <p className="p-6 text-sm text-gray-400">Todavía no cargaste ubicaciones.</p>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-600 text-xs uppercase tracking-wide">
-              <tr>
-                <th className="text-left px-4 py-2">Nombre</th>
-                <th className="text-left px-4 py-2">Tipo</th>
-                <th className="text-left px-4 py-2">Código</th>
-                <th className="text-left px-4 py-2">Padre</th>
-                <th className="text-left px-4 py-2">Estado</th>
-                <th className="px-4 py-2"></th>
+      <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <input
+            type="search"
+            placeholder="Buscar por nombre, código, tipo o ubicación padre…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+            className="min-w-[240px] flex-1 rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-[#0EA5E9] focus:outline-none"
+          />
+          <span className="text-sm text-slate-400">
+            {filtradas.length} de {items.length}
+          </span>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-left text-sm">
+            <thead>
+              <tr className="border-b border-slate-100 text-slate-600">
+                <th className="py-3 pr-4 font-semibold">Ubicación</th>
+                <th className="py-3 pr-4 font-semibold">Código</th>
+                <th className="py-3 pr-4 font-semibold">Tipo</th>
+                <th className="py-3 pr-4 font-semibold">Dentro de</th>
+                <th className="py-3 pr-4 font-semibold">Estado</th>
+                <th className="py-3 font-semibold w-24" />
               </tr>
             </thead>
             <tbody>
-              {items.map((u) => {
-                const parent = items.find((i) => i.id === u.parent_id);
-                return (
-                  <tr key={u.id} className="border-t border-slate-100">
-                    <td className="px-4 py-2 font-medium">{u.nombre}</td>
-                    <td className="px-4 py-2 text-gray-500">{u.tipo}</td>
-                    <td className="px-4 py-2 text-gray-500">{u.codigo ?? "—"}</td>
-                    <td className="px-4 py-2 text-gray-500">{parent?.nombre ?? "—"}</td>
-                    <td className="px-4 py-2">
-                      {u.activo ? (
-                        <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded">Activo</span>
-                      ) : (
-                        <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded">Inactivo</span>
-                      )}
-                    </td>
-                    <td className="px-4 py-2 text-right">
-                      <button
-                        onClick={() => toggleActivo(u)}
-                        className="text-xs text-sky-700 hover:text-sky-900 underline"
-                      >
-                        {u.activo ? "Desactivar" : "Activar"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+              {loading ? (
+                <tr><td colSpan={6} className="py-12 text-center text-slate-400">Cargando…</td></tr>
+              ) : filtradas.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="py-12 text-center text-slate-400">
+                    {items.length === 0 ? "Todavía no cargaste ubicaciones." : "Sin resultados."}
+                  </td>
+                </tr>
+              ) : (
+                filtradas.map((u) => {
+                  const parent = items.find((i) => i.id === u.parent_id);
+                  const info = tipoInfo(u.tipo);
+                  return (
+                    <tr key={u.id} className="border-b border-slate-50 last:border-0 hover:bg-[#4FAEB2]/[0.04] transition-colors">
+                      <td className="py-3 pr-4">
+                        <span className="font-medium text-slate-800">{u.nombre}</span>
+                      </td>
+                      <td className="py-3 pr-4 font-mono text-xs text-slate-600">
+                        {u.codigo ?? <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ${info.tono}`}>
+                          <span aria-hidden>{info.icono}</span> {info.label}
+                        </span>
+                      </td>
+                      <td className="py-3 pr-4 text-slate-600">
+                        {parent ? parent.nombre : <span className="text-slate-300">—</span>}
+                      </td>
+                      <td className="py-3 pr-4">
+                        <button
+                          type="button"
+                          onClick={() => toggleActivo(u)}
+                          title={u.activo ? "Desactivar" : "Activar"}
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors ${
+                            u.activo
+                              ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100"
+                              : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                          }`}
+                        >
+                          {u.activo ? "Activa" : "Inactiva"}
+                        </button>
+                      </td>
+                      <td className="py-3">
+                        <button
+                          type="button"
+                          onClick={() => toggleActivo(u)}
+                          className="text-sm font-medium text-sky-600 hover:underline"
+                        >
+                          {u.activo ? "Desactivar" : "Activar"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
             </tbody>
           </table>
-        )}
+        </div>
       </div>
+
+      {abierto && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+          onClick={() => !creating && setAbierto(false)}
+        >
+          <form
+            onSubmit={handleCrear}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-md space-y-4 rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-lg font-bold text-slate-800">Nueva ubicación</h2>
+                <p className="mt-0.5 text-xs text-slate-500">
+                  Podés armar jerarquías (un estante <em>dentro de</em> un depósito).
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setAbierto(false)}
+                disabled={creating}
+                className="text-slate-400 hover:text-slate-700"
+                aria-label="Cerrar"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+              <div className="sm:col-span-2">
+                <label className="mb-1 block text-xs font-medium text-slate-600">Nombre *</label>
+                <input
+                  className={inputClass}
+                  value={nombre}
+                  onChange={(e) => setNombre(e.target.value)}
+                  placeholder="Depósito central"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-slate-600">Código</label>
+                <input
+                  className={`${inputClass} uppercase`}
+                  value={codigo}
+                  onChange={(e) => setCodigo(e.target.value)}
+                  placeholder="DEP-01"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">Tipo</label>
+              <select className={inputClass} value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                {TIPOS.map((t) => (
+                  <option key={t.value} value={t.value}>{t.icono}  {t.label}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600">
+                Dentro de <span className="text-slate-400">(opcional)</span>
+              </label>
+              <select className={inputClass} value={parentId} onChange={(e) => setParentId(e.target.value)}>
+                <option value="">— ninguna —</option>
+                {items.filter((i) => i.activo).map((i) => (
+                  <option key={i.id} value={i.id}>{i.nombre} · {tipoInfo(i.tipo).label}</option>
+                ))}
+              </select>
+            </div>
+
+            {error && <p className="text-sm text-red-600">{error}</p>}
+
+            <div className="flex justify-end gap-2 border-t border-slate-100 pt-3">
+              <button
+                type="button"
+                onClick={() => setAbierto(false)}
+                disabled={creating}
+                className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100 disabled:opacity-40"
+              >
+                Cancelar
+              </button>
+              <button
+                type="submit"
+                disabled={creating || !nombre.trim()}
+                className="rounded-lg bg-[#0EA5E9] px-4 py-2 text-sm font-medium text-white hover:bg-[#0284C7] disabled:opacity-40"
+              >
+                {creating ? "Creando…" : "Crear ubicación"}
+              </button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }
