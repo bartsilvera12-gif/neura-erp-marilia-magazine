@@ -2,7 +2,7 @@
 
 import PageHeader from "@/components/ui/PageHeader";
 import { ReportCard } from "@/components/reportes/ReportCard";
-import { Wallet, Truck, Package, ShoppingCart, ArrowLeftRight, Lock, BarChart3, CalendarClock, CreditCard, FileText } from "lucide-react";
+import { Wallet, Truck, Package, ShoppingCart, ArrowLeftRight, Lock, BarChart3, CalendarClock, CreditCard, FileText, Boxes } from "lucide-react";
 
 /** Hub de reportería operativa (Fase 1: Estado de cuenta + Proveedores). */
 export default function ReportesPage() {
@@ -85,6 +85,15 @@ export default function ReportesPage() {
             icon={Lock}
             description="Turnos de caja por rango de fechas: apertura, cierre, efectivo esperado vs. contado y diferencias."
             href="/reportes/cajas"
+          />
+        </li>
+        <li>
+          <ReportCard
+            title="Inventario actual"
+            subtitle="Existencias y valorización"
+            icon={Boxes}
+            description="Productos cargados, stock disponible, alertas de reposición, valor al costo y venta potencial, con exportación a Excel."
+            href="/reportes/inventario"
           />
         </li>
         <li>
