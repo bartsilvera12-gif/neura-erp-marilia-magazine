@@ -32,6 +32,10 @@ export interface Producto {
   codigo_barras_interno?: boolean;
   imagen_path?: string | null;
   imagen_url?: string | null;
+  imagen_path_2?: string | null;
+  imagen_url_2?: string | null;
+  imagen_path_3?: string | null;
+  imagen_url_3?: string | null;
   categoria_principal_id?: string | null;
   ubicacion_principal_id?: string | null;
   proveedor_principal_id?: string | null;

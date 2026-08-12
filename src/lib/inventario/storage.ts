@@ -27,6 +27,10 @@ interface ProductoRow {
   codigo_barras_interno?: boolean | null;
   imagen_path?: string | null;
   imagen_url?: string | null;
+  imagen_path_2?: string | null;
+  imagen_url_2?: string | null;
+  imagen_path_3?: string | null;
+  imagen_url_3?: string | null;
   categoria_principal_id?: string | null;
   ubicacion_principal_id?: string | null;
   proveedor_principal_id?: string | null;
@@ -77,6 +81,10 @@ function rowToProducto(row: ProductoRow): Producto {
     codigo_barras_interno: row.codigo_barras_interno ?? false,
     imagen_path: row.imagen_path ?? null,
     imagen_url: row.imagen_url ?? null,
+    imagen_path_2: row.imagen_path_2 ?? null,
+    imagen_url_2: row.imagen_url_2 ?? null,
+    imagen_path_3: row.imagen_path_3 ?? null,
+    imagen_url_3: row.imagen_url_3 ?? null,
     categoria_principal_id: row.categoria_principal_id ?? null,
     ubicacion_principal_id: row.ubicacion_principal_id ?? null,
     proveedor_principal_id: row.proveedor_principal_id ?? null,

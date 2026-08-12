@@ -68,9 +68,8 @@ export default function NuevoItemPage() {
   const [error, setError] = useState<string | null>(null);
   const [okMsg, setOkMsg] = useState<string | null>(null);
 
-  // Imagen
-  const [imagenFile, setImagenFile] = useState<File | null>(null);
-  const [imagenPreview, setImagenPreview] = useState<string | null>(null);
+  // Imágenes: hasta 3 slots. Se acumulan antes de crear y se suben post-alta.
+  const [imagenes, setImagenes] = useState<Array<{ file: File; preview: string } | null>>([null, null, null]);
   const [imagenError, setImagenError] = useState<string | null>(null);
   const ALLOWED_MIME = ["image/jpeg", "image/png", "image/webp"];
   const MAX_IMG_BYTES = 5 * 1024 * 1024;
@@ -114,14 +113,21 @@ export default function NuevoItemPage() {
     setCodigoBarras(e.target.value.replace(/\D/g, "").slice(0, 14));
   }
 
-  function handleImagenChange(e: React.ChangeEvent<HTMLInputElement>) {
+  function handleImagenSlot(idx: 0 | 1 | 2, e: React.ChangeEvent<HTMLInputElement>) {
     setImagenError(null);
     const f = e.target.files?.[0] ?? null;
-    if (!f) { setImagenFile(null); setImagenPreview(null); return; }
+    if (!f) return;
     if (!ALLOWED_MIME.includes(f.type)) { setImagenError("Formato no permitido. Usá JPG, PNG o WebP."); e.target.value = ""; return; }
     if (f.size > MAX_IMG_BYTES) { setImagenError("Imagen demasiado grande (máx. 5 MB)."); e.target.value = ""; return; }
-    setImagenFile(f);
-    setImagenPreview(URL.createObjectURL(f));
+    setImagenes((prev) => {
+      const next = [...prev];
+      next[idx] = { file: f, preview: URL.createObjectURL(f) };
+      return next;
+    });
+    e.target.value = "";
+  }
+  function quitarImagenSlot(idx: 0 | 1 | 2) {
+    setImagenes((prev) => { const n = [...prev]; n[idx] = null; return n; });
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -179,20 +185,26 @@ export default function NuevoItemPage() {
 
       const varId = j.data?.variantes?.[0]?.id as string | undefined;
 
-      // Imagen (post-creación, con producto_id de la variante)
-      if (imagenFile && varId) {
-        try {
-          const fd = new FormData();
-          fd.append("file", imagenFile);
-          const up = await fetch(`/api/productos/${varId}/imagen`, { method: "POST", body: fd, credentials: "include" });
-          const upJson = await up.json().catch(() => ({}));
-          if (!up.ok || !upJson?.success) {
-            alert(`Ítem creado, pero la imagen no se pudo subir: ${upJson?.error ?? "error"}.\nPodés subirla desde la edición del producto.`);
-            router.push(`/inventario/${varId}/editar`);
-            return;
+      // Imágenes (post-creación): subir los slots cargados uno por uno.
+      if (varId && imagenes.some(Boolean)) {
+        const fallidos: number[] = [];
+        for (let i = 0; i < imagenes.length; i++) {
+          const it = imagenes[i];
+          if (!it) continue;
+          try {
+            const fd = new FormData();
+            fd.append("file", it.file);
+            const up = await fetch(`/api/productos/${varId}/imagen?slot=${i + 1}`, {
+              method: "POST", body: fd, credentials: "include",
+            });
+            const upJson = await up.json().catch(() => ({}));
+            if (!up.ok || !upJson?.success) fallidos.push(i + 1);
+          } catch {
+            fallidos.push(i + 1);
           }
-        } catch {
-          alert("Ítem creado, pero la imagen no se pudo subir. Podés subirla desde la edición del producto.");
+        }
+        if (fallidos.length) {
+          alert(`Ítem creado, pero ${fallidos.length === 1 ? "una imagen no se pudo subir" : `${fallidos.length} imágenes no se pudieron subir`}. Podés cargarlas desde la edición del producto.`);
           router.push(`/inventario/${varId}/editar`);
           return;
         }
@@ -362,27 +374,49 @@ export default function NuevoItemPage() {
           )}
         </div>
 
-        {/* Imagen */}
+        {/* Imágenes: principal + 2 adicionales (opcional) */}
         <div className="border-t border-slate-100 pt-6">
-          <label className={labelClass}>Imagen del ítem (opcional)</label>
-          <div className="flex items-start gap-4">
-            <div className="w-28 h-28 rounded-xl bg-slate-100 border border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-              {imagenPreview ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={imagenPreview} alt="Vista previa" className="w-full h-full object-cover" />
-              ) : (
-                <span className="text-slate-300 text-xs">Sin imagen</span>
-              )}
-            </div>
-            <div className="flex-1">
-              <label className="bg-[#4FAEB2] hover:bg-[#3F8E91] text-white text-sm px-4 py-2 rounded-lg cursor-pointer transition-colors inline-block">
-                {imagenFile ? "Cambiar imagen" : "Seleccionar imagen"}
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={handleImagenChange} />
-              </label>
-              <p className="mt-1.5 text-xs text-slate-400">JPG, PNG o WebP — máx. 5 MB.</p>
-              {imagenError && <p className="mt-1.5 text-xs text-red-600">{imagenError}</p>}
-            </div>
+          <label className={labelClass}>Imágenes del ítem (opcional)</label>
+          <div className="grid grid-cols-3 gap-3 max-w-md">
+            {[0, 1, 2].map((i) => {
+              const idx = i as 0 | 1 | 2;
+              const it = imagenes[idx];
+              const rotulo = idx === 0 ? "Principal" : `Adicional ${idx}`;
+              return (
+                <div key={idx} className="flex flex-col items-center gap-1.5">
+                  <label className="group relative w-full aspect-square rounded-xl border-2 border-dashed border-slate-200 bg-slate-50 hover:border-[#4FAEB2] hover:bg-slate-100 transition-colors overflow-hidden cursor-pointer flex items-center justify-center">
+                    {it ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={it.preview} alt={rotulo} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="flex flex-col items-center justify-center text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+                        </svg>
+                        <span className="mt-1 text-[11px] font-medium">{rotulo}</span>
+                      </div>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      className="hidden"
+                      onChange={(e) => handleImagenSlot(idx, e)}
+                    />
+                  </label>
+                  <div className="flex items-center gap-2 text-[11px]">
+                    <span className="text-slate-500">{rotulo}</span>
+                    {it && (
+                      <button type="button" onClick={() => quitarImagenSlot(idx)} className="text-red-600 hover:underline">
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
           </div>
+          <p className="mt-2 text-xs text-slate-400">JPG, PNG o WebP — máx. 5 MB cada una. La principal es la que muestra el sitio en el catálogo.</p>
+          {imagenError && <p className="mt-1.5 text-xs text-red-600">{imagenError}</p>}
         </div>
 
         {/* Publicación en la web */}

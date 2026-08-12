@@ -50,9 +50,16 @@ export async function ensureProductosImagenesBucket(supabase: AppSupabaseClient)
   bucketEnsured = true;
 }
 
-export function buildProductoImagenPath(empresaId: string, productoId: string, mime: string): string {
+export function buildProductoImagenPath(
+  empresaId: string,
+  productoId: string,
+  mime: string,
+  slot: 1 | 2 | 3 = 1
+): string {
   const ext = ALLOWED_IMAGE_EXT[mime] ?? "bin";
-  return `${empresaId}/${productoId}/principal.${ext}`;
+  // Slot 1 conserva el nombre "principal" para compatibilidad con lo ya cargado.
+  const nombre = slot === 1 ? "principal" : `secundaria-${slot}`;
+  return `${empresaId}/${productoId}/${nombre}.${ext}`;
 }
 
 /**
@@ -88,17 +95,26 @@ export async function signProductoImagen(
  * sesión del visitante.
  */
 export async function resolverImagenesPublicas<
-  T extends { imagen_url?: string | null; imagen_path?: string | null }
+  T extends {
+    imagen_url?: string | null; imagen_path?: string | null;
+    imagen_url_2?: string | null; imagen_path_2?: string | null;
+    imagen_url_3?: string | null; imagen_path_3?: string | null;
+  }
 >(
   supabase: AppSupabaseClient,
   productos: T[],
   ttlSeconds = 60 * 60 * 24 * 7
-): Promise<Array<Omit<T, "imagen_path">>> {
+): Promise<Array<Omit<T, "imagen_path" | "imagen_path_2" | "imagen_path_3">>> {
+  // Firma también los slots 2 y 3 en el mismo pedido en lote.
   const pendientes = Array.from(
     new Set(
-      productos
-        .filter((p) => !p.imagen_url && p.imagen_path)
-        .map((p) => p.imagen_path as string)
+      productos.flatMap((p) => {
+        const rs: string[] = [];
+        if (!p.imagen_url   && p.imagen_path)   rs.push(p.imagen_path);
+        if (!p.imagen_url_2 && p.imagen_path_2) rs.push(p.imagen_path_2);
+        if (!p.imagen_url_3 && p.imagen_path_3) rs.push(p.imagen_path_3);
+        return rs;
+      })
     )
   );
   const firmadas = new Map<string, string>();
@@ -115,10 +131,13 @@ export async function resolverImagenesPublicas<
       // Sin firma: los productos afectados caen al placeholder del sitio.
     }
   }
-  return productos.map(({ imagen_path, ...rest }) => ({
+  const resolver = (u?: string | null, p?: string | null) =>
+    u ?? (p ? firmadas.get(p) ?? null : null);
+  return productos.map(({ imagen_path, imagen_path_2, imagen_path_3, ...rest }) => ({
     ...rest,
-    imagen_url:
-      rest.imagen_url ?? (imagen_path ? firmadas.get(imagen_path) ?? null : null),
+    imagen_url:   resolver(rest.imagen_url,   imagen_path),
+    imagen_url_2: resolver(rest.imagen_url_2, imagen_path_2),
+    imagen_url_3: resolver(rest.imagen_url_3, imagen_path_3),
   }));
 }
 

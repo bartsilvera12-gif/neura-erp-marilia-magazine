@@ -38,6 +38,10 @@ export default function EditarProductoPage() {
   });
   const [imagenPath, setImagenPath] = useState<string | null>(null);
   const [imagenUrl, setImagenUrl] = useState<string | null>(null);
+  const [imagenPath2, setImagenPath2] = useState<string | null>(null);
+  const [imagenUrl2, setImagenUrl2] = useState<string | null>(null);
+  const [imagenPath3, setImagenPath3] = useState<string | null>(null);
+  const [imagenUrl3, setImagenUrl3] = useState<string | null>(null);
   const [codigoOriginal, setCodigoOriginal] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [generandoCodigo, setGenerandoCodigo] = useState(false);
@@ -125,6 +129,10 @@ export default function EditarProductoPage() {
       setCodigoOriginal(p.codigo_barras ?? null);
       setImagenPath(p.imagen_path ?? null);
       setImagenUrl(p.imagen_url ?? null);
+      setImagenPath2(p.imagen_path_2 ?? null);
+      setImagenUrl2(p.imagen_url_2 ?? null);
+      setImagenPath3(p.imagen_path_3 ?? null);
+      setImagenUrl3(p.imagen_url_3 ?? null);
       setCategoriaId(p.categoria_principal_id ?? null);
       setUbicacionId(p.ubicacion_principal_id ?? null);
       setProveedorId(p.proveedor_principal_id ?? null);
@@ -380,16 +388,21 @@ export default function EditarProductoPage() {
             )}
           </div>
 
-          {/* Imagen del producto */}
+          {/* Imágenes del producto: principal + 2 adicionales */}
           <div>
-            <label className={labelClass}>Imagen del producto</label>
+            <label className={labelClass}>Imágenes del producto</label>
             <ProductImageUploader
               productoId={id}
               initialUrl={imagenUrl}
               initialPath={imagenPath}
-              onChange={(info) => {
-                setImagenPath(info.imagen_path);
-                setImagenUrl(info.imagen_url);
+              initialUrl2={imagenUrl2}
+              initialPath2={imagenPath2}
+              initialUrl3={imagenUrl3}
+              initialPath3={imagenPath3}
+              onChange={(slot, info) => {
+                if (slot === 1) { setImagenPath(info.imagen_path); setImagenUrl(info.imagen_url); }
+                if (slot === 2) { setImagenPath2(info.imagen_path); setImagenUrl2(info.imagen_url); }
+                if (slot === 3) { setImagenPath3(info.imagen_path); setImagenUrl3(info.imagen_url); }
               }}
             />
           </div>

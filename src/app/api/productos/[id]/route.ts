@@ -11,6 +11,7 @@ const PRODUCTO_COLS =
   "id, empresa_id, nombre, sku, costo_promedio, precio_venta, stock_actual, stock_minimo, " +
   "unidad_medida, metodo_valuacion, activo, created_at, updated_at, " +
   "codigo_barras, codigo_barras_interno, imagen_path, imagen_url, " +
+  "imagen_path_2, imagen_url_2, imagen_path_3, imagen_url_3, " +
   "categoria_principal_id, ubicacion_principal_id, proveedor_principal_id, " +
   "es_vendible, es_insumo, controla_stock, destacado, visible_web, valorizado, unidad_compra, unidad_receta, " +
   "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
@@ -133,6 +134,18 @@ export async function PATCH(
     if (body.imagen_url !== undefined) {
       const v = body.imagen_url != null ? String(body.imagen_url) : "";
       patch.imagen_url = v || null;
+    }
+    for (const slot of [2, 3] as const) {
+      const pk = `imagen_path_${slot}` as const;
+      const uk = `imagen_url_${slot}` as const;
+      if (body[pk] !== undefined) {
+        const v = body[pk] != null ? String(body[pk]) : "";
+        patch[pk] = v || null;
+      }
+      if (body[uk] !== undefined) {
+        const v = body[uk] != null ? String(body[uk]) : "";
+        patch[uk] = v || null;
+      }
     }
 
     let categoriaCambia = false;
