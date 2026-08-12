@@ -152,10 +152,13 @@ export default function CategoriasProductosPage() {
               onChange={(e) => setParentId(e.target.value)}
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white"
             >
-              <option value="">— ninguna —</option>
-              {items.filter((i) => i.activo).map((i) => (
-                <option key={i.id} value={i.id}>{i.nombre}</option>
-              ))}
+              <option value="">— ninguna (categoría principal) —</option>
+              {items
+                .filter((i) => i.activo && !i.parent_id)
+                .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"))
+                .map((i) => (
+                  <option key={i.id} value={i.id}>{i.nombre}</option>
+                ))}
             </select>
           </div>
           <div className="md:col-span-3">
@@ -193,10 +196,43 @@ export default function CategoriasProductosPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((c) => {
+              {(() => {
+                // Ordenamos como árbol: padre y a continuación sus hijas.
+                // Cada categoría sin padre arranca un grupo; las huérfanas cuyo
+                // padre desapareció se muestran al final para no perderlas.
+                const porPadre = new Map<string, typeof items>();
+                const padres: typeof items = [];
+                items.forEach((c) => {
+                  if (!c.parent_id) padres.push(c);
+                  else {
+                    const arr = porPadre.get(c.parent_id) ?? [];
+                    arr.push(c);
+                    porPadre.set(c.parent_id, arr);
+                  }
+                });
+                padres.sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
+                const idsPadre = new Set(items.filter((c) => !c.parent_id).map((c) => c.id));
+                const huerfanas = items.filter((c) => c.parent_id && !idsPadre.has(c.parent_id));
+
+                const filas: typeof items = [];
+                padres.forEach((p) => {
+                  filas.push(p);
+                  const hijas = (porPadre.get(p.id) ?? []).sort((a, b) =>
+                    a.nombre.localeCompare(b.nombre, "es")
+                  );
+                  filas.push(...hijas);
+                });
+                if (huerfanas.length) filas.push(...huerfanas);
+
+                return filas;
+              })().map((c) => {
                 const parent = items.find((i) => i.id === c.parent_id);
+                const esPadre = !c.parent_id;
                 return (
-                  <tr key={c.id} className="border-t border-slate-100">
+                  <tr
+                    key={c.id}
+                    className={`border-t border-slate-100 ${esPadre ? "bg-slate-50/60" : ""}`}
+                  >
                     <td className="px-4 py-2">
                       {c.imagen_url ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -205,9 +241,17 @@ export default function CategoriasProductosPage() {
                         <div className="h-10 w-10 rounded bg-slate-100 border border-slate-200" />
                       )}
                     </td>
-                    <td className="px-4 py-2 font-medium">{c.nombre}</td>
+                    <td className={`px-4 py-2 ${esPadre ? "font-semibold text-slate-800" : "text-slate-700"}`}>
+                      {esPadre ? (
+                        c.nombre
+                      ) : (
+                        <span className="pl-6 text-slate-400 before:mr-2 before:content-['↳']">
+                          <span className="text-slate-700">{c.nombre}</span>
+                        </span>
+                      )}
+                    </td>
                     <td className="px-4 py-2 text-gray-500">{c.codigo ?? "—"}</td>
-                    <td className="px-4 py-2 text-gray-500">{parent?.nombre ?? "—"}</td>
+                    <td className="px-4 py-2 text-gray-500">{parent?.nombre ?? (esPadre ? <span className="text-[10px] uppercase tracking-wide text-slate-400">principal</span> : "—")}</td>
                     <td className="px-4 py-2">
                       {c.mostrar_home ? (
                         <span
@@ -336,7 +380,11 @@ function EditarCategoriaModal({
     }
   }
 
-  const posiblesPadres = categorias.filter((c) => c.id !== categoria.id && c.activo);
+  // Solo las principales pueden ser padre — la jerarquía va a un nivel.
+  // También se excluye a la propia categoría (para que no sea su propio padre).
+  const posiblesPadres = categorias
+    .filter((c) => c.id !== categoria.id && c.activo && !c.parent_id)
+    .sort((a, b) => a.nombre.localeCompare(b.nombre, "es"));
 
   return (
     <div className="fixed inset-0 z-50 bg-slate-900/40 flex items-center justify-center p-4" onClick={onClose}>
