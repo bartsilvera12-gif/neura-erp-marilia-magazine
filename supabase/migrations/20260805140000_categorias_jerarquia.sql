@@ -98,7 +98,11 @@ END $$;
 
 -- 4) La vista sitio_categorias suma modelos por padre para el menú del sitio.
 --    Cada modelo se cuenta bajo su categoría directa Y bajo el padre de esa.
-CREATE OR REPLACE VIEW mariliaerp.sitio_categorias
+--    Se DROPea antes: la vista anterior devolvía otras columnas y en ese caso
+--    `CREATE OR REPLACE VIEW` falla con "cannot change name of view column".
+DROP VIEW IF EXISTS mariliaerp.sitio_categorias;
+
+CREATE VIEW mariliaerp.sitio_categorias
 WITH (security_invoker = true) AS
 WITH conteos AS (
   SELECT p.categoria_principal_id AS cat_id, count(DISTINCT p.codigo_proveedor) AS modelos
