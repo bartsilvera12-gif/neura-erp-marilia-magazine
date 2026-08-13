@@ -15,6 +15,7 @@ import {
 import { downloadSifenCertificadoObject } from "@/lib/sifen/sifen-certificados-storage";
 import { extractKeyAndCertFromP12, signSifenDocumentoXml } from "@/lib/sifen/sign-xml";
 import { SIFEN_TEST_CSC_GENERICO } from "@/lib/sifen/sifen-ambiente-test";
+import { idCscDesdeEnv } from "@/lib/sifen/sifen-dcar-qr";
 import { parseAmbiente } from "@/lib/sifen/config-validation";
 import type { AmbienteSifen } from "@/lib/sifen/types";
 import { isExplicitSifenTestOverrideEnabled } from "@/lib/env/allow-test-mode";
@@ -177,6 +178,7 @@ export async function handleNcSifenFirmarPost(opts: {
     signedXml = signSifenDocumentoXml(xmlDl.data.toString("utf8"), material, {
       ambiente,
       csc: cscParaQr,
+      idCsc: idCscDesdeEnv(),
     });
   } catch (e) {
     const m = e instanceof Error ? e.message : "Error al firmar el XML";

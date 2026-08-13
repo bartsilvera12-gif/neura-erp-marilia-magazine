@@ -24,6 +24,19 @@ function textOf(el: XmlElement | null | undefined): string {
 }
 
 /**
+ * `IdCSC` asignado por la DNIT al CSC del contribuyente. Casi siempre `0001`, pero si al RUC le
+ * asignaron otro (p. ej. `0002` tras regenerar el CSC), declarar `0001` hace que SET recalcule el
+ * hash con un CSC distinto y rechace el DE con "El hash del código QR ... es inválido".
+ * Se configura por entorno (`SIFEN_ID_CSC`) porque cada ERP es un deployment de un solo cliente.
+ * Sin la variable se mantiene el comportamiento anterior.
+ */
+export function idCscDesdeEnv(): string | undefined {
+  const raw = (process.env.SIFEN_ID_CSC ?? "").replace(/\D/g, "");
+  if (!raw) return undefined;
+  return raw.padStart(4, "0").slice(-4);
+}
+
+/**
  * Construye la URL completa del QR a partir del XML **ya firmado** (debe existir `ds:Signature` / `DigestValue`).
  */
 export function buildSifenDcarQrUrl(signedXmlUtf8: string, opts: BuildSifenDcarQrOptions): string {
