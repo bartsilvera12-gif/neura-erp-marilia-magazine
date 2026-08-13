@@ -401,9 +401,15 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
         .maybeSingle();
       const estado = (feQ.data as { estado_sifen?: string | null } | null)?.estado_sifen ?? null;
       if (estado === "aprobado") {
-        return NextResponse.redirect(
-          new URL(`/api/facturas/${facturaId}/sifen/kude`, request.url)
-        );
+        /**
+         * Location relativo a propósito: detrás del proxy, `request.url` es la URL interna del
+         * contenedor (`localhost:3000`) y armar un destino absoluto con eso manda al navegador
+         * a una dirección que no existe para el usuario.
+         */
+        return new NextResponse(null, {
+          status: 302,
+          headers: { Location: `/api/facturas/${facturaId}/sifen/kude` },
+        });
       }
     }
   }
