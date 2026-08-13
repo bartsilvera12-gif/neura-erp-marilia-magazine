@@ -352,11 +352,11 @@ export default function VentasPage() {
                               siempre se puede reimprimir. La factura queda como
                               accion extra para las ventas con cliente. */}
                           <a
-                            href={`/api/ventas/${v.id}/ticket`}
+                            href={`/api/ventas/${v.id}/ticket?preferir=fiscal`}
                             target="_blank"
                             rel="noopener"
                             className={`${BTN_ACCION} border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50`}
-                            title="Ticket de la venta (no fiscal)"
+                            title="Imprime el KuDE si la factura electrónica está aprobada; si no, el ticket de la venta (no fiscal)"
                           >
                             <Printer className="h-3.5 w-3.5 shrink-0" aria-hidden />
                             Imprimir

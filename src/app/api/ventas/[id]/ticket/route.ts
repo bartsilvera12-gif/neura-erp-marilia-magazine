@@ -378,6 +378,36 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   if (!ctx) return new NextResponse("No autorizado", { status: 401 });
   const empresaId = ctx.auth.empresa_id;
 
+  /**
+   * Reimpresión desde la lista de ventas (`preferir=fiscal`): si la venta ya tiene factura
+   * electrónica aprobada, el documento que corresponde entregar es el KuDE y no el ticket no
+   * fiscal. Se pide explícitamente para no alterar los otros flujos: la caja imprime con
+   * `auto=1` apenas cobra (ahí el DE todavía no está aprobado) y la remisión es otro documento.
+   */
+  if (url.searchParams.get("preferir") === "fiscal" && !esRemision && !modeComandas) {
+    const vFac = await ctx.supabase
+      .from("ventas")
+      .select("factura_id")
+      .eq("id", id)
+      .eq("empresa_id", empresaId)
+      .maybeSingle();
+    const facturaId = (vFac.data as { factura_id?: string | null } | null)?.factura_id ?? null;
+    if (facturaId) {
+      const feQ = await ctx.supabase
+        .from("factura_electronica")
+        .select("estado_sifen")
+        .eq("factura_id", facturaId)
+        .eq("empresa_id", empresaId)
+        .maybeSingle();
+      const estado = (feQ.data as { estado_sifen?: string | null } | null)?.estado_sifen ?? null;
+      if (estado === "aprobado") {
+        return NextResponse.redirect(
+          new URL(`/api/facturas/${facturaId}/sifen/kude`, request.url)
+        );
+      }
+    }
+  }
+
   // Venta
   const vQ = await ctx.supabase
     .from("ventas")
