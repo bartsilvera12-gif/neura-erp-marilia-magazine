@@ -12,7 +12,24 @@ export const EMPRESA_DOC = {
   direccion: ["Av. Mariscal López 2340, Villa Morra", "Asunción, Paraguay"],
   /** Logo del documento. Si no existe se muestra el texto del negocio en su lugar. */
   logoUrl: "/brand/marilia-doc-logo.png",
-  logoTicketUrl: "/brand/marilia-ticket-logo-bw.png",
+  // Logo transparente del sitio: sirve tanto en A4 como en tickets.
+  logoTicketUrl: "/brand/marilia-logo.png",
+};
+
+/**
+ * Datos de la razón social que factura y aparecen al pie del ticket.
+ *
+ * La marca comercial (Marilia Magazine) va arriba con el logo, pero el
+ * documento tributario se emite bajo MatCon Group EAS. Se dejan como constante
+ * dedicada para separarlos claramente del membrete de marca.
+ */
+export const EMPRESA_FISCAL = {
+  razonSocial: "MatCon Group EAS",
+  ruc: "80159574-6",
+  direccion: [
+    "Edificio Skypark",
+    "Aviadores del Chaco 01527, piso 7, Oficina C",
+  ],
 };
 
 function esc(v: unknown): string {
@@ -43,7 +60,10 @@ function marcaMariliaHTML(bw = false): string {
  */
 export function membreteA4(origin = ""): string {
   const e = EMPRESA_DOC;
-  const logo = origin ? `${origin}${e.logoUrl}` : e.logoUrl;
+  const f = EMPRESA_FISCAL;
+  // Se usa el mismo logo transparente que en el ticket para tener una sola
+  // fuente de verdad — antes había uno gris para A4 y otro B/N para ticket.
+  const logo = origin ? `${origin}${e.logoTicketUrl}` : e.logoTicketUrl;
   // Intento cargar el <img>; si falla, JS onerror muestra la marca tipográfica
   const marcaFallback = marcaMariliaHTML(false).replace(/"/g, "&quot;");
   return `
@@ -54,10 +74,11 @@ export function membreteA4(origin = ""): string {
         onerror="this.outerHTML='${marcaFallback}'" />
     </div>
     <div style="flex:1;min-width:0;text-align:right;font-size:11px;color:#4A443A;line-height:1.55;">
-      <div style="font-size:14px;font-weight:600;color:#1E1B16;">${esc(e.nombre)}</div>
+      <div style="font-size:14px;font-weight:600;color:#1E1B16;">${esc(f.razonSocial)}</div>
+      <div style="color:#8A7F6A;">RUC ${esc(f.ruc)}</div>
       ${e.actividad.map((a) => `<div style="color:#8A7F6A;">${esc(a)}</div>`).join("")}
       ${e.telefono ? `<div style="margin-top:4px;"><strong>Tel:</strong> ${esc(e.telefono)}</div>` : ""}
-      <div>${e.direccion.map(esc).join(" · ")}</div>
+      <div>${f.direccion.map(esc).join(" · ")}</div>
     </div>
   </div>`;
 }
@@ -67,17 +88,18 @@ export function membreteA4(origin = ""): string {
  */
 export function membreteTicket(origin = ""): string {
   const e = EMPRESA_DOC;
+  const f = EMPRESA_FISCAL;
   const logo = origin ? `${origin}${e.logoTicketUrl}` : e.logoTicketUrl;
   const marcaFallback = marcaMariliaHTML(true).replace(/"/g, "&quot;");
   return `
   <div style="text-align:center;padding-bottom:6px;margin-bottom:6px;border-bottom:1px dashed #000;">
-    <div style="margin:0 auto 4px;">
+    <div style="margin:0 auto 6px;">
       <img src="${esc(logo)}" alt="${esc(e.nombre)}"
-        style="max-width:150px;max-height:72px;width:auto;height:auto;object-fit:contain;display:inline-block;-webkit-print-color-adjust:exact;print-color-adjust:exact;"
+        style="max-width:170px;max-height:80px;width:auto;height:auto;object-fit:contain;display:inline-block;-webkit-print-color-adjust:exact;print-color-adjust:exact;"
         onerror="this.outerHTML='${marcaFallback}'" />
     </div>
-    ${e.telefono ? `<div style="font-size:10px;">Tel: ${esc(e.telefono)}</div>` : ""}
-    <div style="font-size:10px;">${esc(e.direccion[0])}</div>
-    ${e.direccion.length > 1 ? `<div style="font-size:10px;">${esc(e.direccion.slice(1).join(" · "))}</div>` : ""}
+    <div style="font-size:10px;font-weight:600;">${esc(f.razonSocial)}</div>
+    <div style="font-size:10px;">RUC: ${esc(f.ruc)}</div>
+    ${f.direccion.map((d) => `<div style="font-size:10px;">${esc(d)}</div>`).join("")}
   </div>`;
 }
