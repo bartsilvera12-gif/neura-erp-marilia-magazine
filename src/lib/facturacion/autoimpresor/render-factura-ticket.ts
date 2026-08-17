@@ -38,6 +38,7 @@ export interface FacturaTicketData {
   items: Array<{
     cantidad: number;
     descripcion: string;
+    codigo?: string | null;
     precioUnitario: number;
     totalLinea: number;
     tipo_iva: string;
@@ -145,11 +146,15 @@ export function renderFacturaTicketHTML(d: FacturaTicketData): string {
 
   const itemsHtml = d.items
     .map((it) => {
+      const codigoLinea = it.codigo && String(it.codigo).trim()
+        ? `<tr class="sub"><td></td><td colspan="2">Cod: ${esc(String(it.codigo).trim())}</td></tr>`
+        : "";
       return `<tr class="it">
           <td class="qty"><strong>${it.cantidad}×</strong></td>
           <td class="name">${esc(it.descripcion)}</td>
           <td class="amt">${gs(it.totalLinea)}</td>
         </tr>
+        ${codigoLinea}
         <tr class="sub"><td></td><td colspan="2">${it.cantidad} × ${gs(it.precioUnitario)} ${ivaTag(it.tipo_iva)}</td></tr>`;
     })
     .join("");

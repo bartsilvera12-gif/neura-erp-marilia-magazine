@@ -151,7 +151,7 @@ interface ItemRow {
   presentacion_cantidad_base?: number | string | null;
 }
 
-type EnrichedItem = ItemRow & { sector: Sector };
+type EnrichedItem = ItemRow & { sector: Sector; codigo_proveedor?: string | null };
 
 interface PedidoBrief {
   modalidad?: "local" | "delivery" | "carry_out";
@@ -199,6 +199,10 @@ function renderCopia(opts: {
         ? `<tr class="sub"><td></td><td colspan="2" style="opacity:.75;">= ${cant * cantBase} unidades</td></tr>`
         : "";
 
+      const codigo = (it.codigo_proveedor ?? "").trim();
+      const codigoLinea = codigo
+        ? `<tr class="sub"><td></td><td colspan="2">Cod: ${escapeHtml(codigo)}</td></tr>`
+        : "";
       const main = showPrices
         ? `<tr class="${cls}">
              <td class="qty"><strong>${cantStr}×</strong></td>
@@ -206,12 +210,14 @@ function renderCopia(opts: {
              <td class="amt">${formatGs(sub)}</td>
            </tr>
            ${equiv}
+           ${codigoLinea}
            <tr class="sub"><td></td><td colspan="2">${cant} × ${formatGs(punit)}</td></tr>`
         : `<tr class="${cls}">
              <td class="qty"><strong>${cantStr}×</strong></td>
              <td class="name" colspan="2"><strong>${escapeHtml(it.producto_nombre)}</strong></td>
            </tr>
-           ${equiv}`;
+           ${equiv}
+           ${codigoLinea}`;
       return main;
     })
     .join("");
@@ -553,10 +559,28 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
     }
   }
 
+  // codigo_proveedor del producto — se muestra en el ticket como referencia
+  // ("Cod: 03516531"). No esta snapshotado en ventas_items.
+  const codigoByProd = new Map<string, string | null>();
+  if (productoIds.length > 0) {
+    try {
+      const cpQ = await ctx.supabase
+        .from("productos")
+        .select("id, codigo_proveedor")
+        .eq("empresa_id", empresaId)
+        .in("id", productoIds);
+      for (const r of (cpQ.data ?? []) as Array<{ id: string; codigo_proveedor: string | null }>) {
+        codigoByProd.set(r.id, r.codigo_proveedor ?? null);
+      }
+    } catch {
+      // si falla, seguimos sin codigo
+    }
+  }
+
   const items: EnrichedItem[] = itemsRaw.map((it) => {
     const fromCat = sectorByProd.get(it.producto_id) ?? null;
     const sector: Sector = fromCat ?? classifyBySku(it.sku);
-    return { ...it, sector };
+    return { ...it, sector, codigo_proveedor: codigoByProd.get(it.producto_id) ?? null };
   });
 
   // Decidir qué copias imprimir

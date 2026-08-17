@@ -27,6 +27,7 @@ import { EMPRESA_DOC } from "@/lib/documentos/membrete";
  */
 
 interface ItemRow {
+  producto_id: string;
   producto_nombre: string;
   cantidad: number | string;
   precio_venta: number | string;
@@ -64,14 +65,31 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   // Ítems
   const iQ = await ctx.supabase
     .from("ventas_items")
-    .select("producto_nombre, cantidad, precio_venta, total_linea, monto_iva, tipo_iva")
+    .select("producto_id, producto_nombre, cantidad, precio_venta, total_linea, monto_iva, tipo_iva")
     .eq("venta_id", id)
     .eq("empresa_id", empresaId);
   if (iQ.error) return new NextResponse(`Error items: ${iQ.error.message}`, { status: 500 });
   const itemsRaw = (iQ.data ?? []) as unknown as ItemRow[];
+
+  // codigo_proveedor por producto — no esta snapshotado en ventas_items, se
+  // trae de productos por producto_id. Si no hay codigo, se omite la linea.
+  const codigoByProd = new Map<string, string | null>();
+  const prodIds = [...new Set(itemsRaw.map((it) => it.producto_id).filter(Boolean))];
+  if (prodIds.length > 0) {
+    const cpQ = await ctx.supabase
+      .from("productos")
+      .select("id, codigo_proveedor")
+      .eq("empresa_id", empresaId)
+      .in("id", prodIds);
+    for (const r of (cpQ.data ?? []) as Array<{ id: string; codigo_proveedor: string | null }>) {
+      codigoByProd.set(r.id, r.codigo_proveedor ?? null);
+    }
+  }
+
   const items = itemsRaw.map((it) => ({
     cantidad: Number(it.cantidad),
     descripcion: it.producto_nombre,
+    codigo: codigoByProd.get(it.producto_id) ?? null,
     precioUnitario: Number(it.precio_venta),
     totalLinea: Number(it.total_linea),
     tipo_iva: it.tipo_iva,
