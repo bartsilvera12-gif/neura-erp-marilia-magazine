@@ -22,12 +22,15 @@ export interface PrecioParsed {
   precio_venta: number | null;
   precio_mayorista: number | null;
   costo_promedio: number | null;
+  /** Opcional: si viene, se actualiza el codigo_proveedor del producto. */
+  codigo_proveedor: string | null;
   errors: string[];
   warnings: string[];
   match_id?: string | null;
   precio_venta_actual?: number | null;
   precio_mayorista_actual?: number | null;
   costo_actual?: number | null;
+  codigo_proveedor_actual?: string | null;
 }
 
 function parseOptionalNumber(row: Record<string, string>, ...keys: string[]): number | null {
@@ -45,8 +48,10 @@ export function parsePreciosRows(rows: Record<string, string>[]): PrecioParsed[]
     const precio_venta = parseOptionalNumber(r, "PRECIO_VENTA", "PRECIOVENTA");
     const precio_mayorista = parseOptionalNumber(r, "PRECIO_MAYORISTA", "PRECIOMAYORISTA");
     const costo_promedio = parseOptionalNumber(r, "COSTO_PROMEDIO", "COSTO");
-    if (!precio_venta && !precio_mayorista && !costo_promedio) {
-      errors.push("Sin datos a actualizar (PRECIO_VENTA, PRECIO_MAYORISTA o COSTO_PROMEDIO).");
+    const codigo_proveedor_raw = normalizeUpperText(pick(r, "CODIGO_PROVEEDOR", "CODIGOPROVEEDOR", "CODIGO_FABRICANTE"));
+    const codigo_proveedor = codigo_proveedor_raw || null;
+    if (!precio_venta && !precio_mayorista && !costo_promedio && !codigo_proveedor) {
+      errors.push("Sin datos a actualizar (PRECIO_VENTA, PRECIO_MAYORISTA, COSTO_PROMEDIO o CODIGO_PROVEEDOR).");
     }
     return {
       row_number: idx + 2,
@@ -54,6 +59,7 @@ export function parsePreciosRows(rows: Record<string, string>[]): PrecioParsed[]
       precio_venta,
       precio_mayorista,
       costo_promedio,
+      codigo_proveedor,
       errors,
       warnings: [],
     };
@@ -66,6 +72,7 @@ export interface PrecioResolverMaps {
     precio_venta: number;
     precio_mayorista: number | null;
     costo_promedio: number;
+    codigo_proveedor: string | null;
   }>;
 }
 
@@ -80,8 +87,9 @@ export async function buildPreciosResolverMaps(schemaRaw: string, empresaId: str
     precio_venta: string | number;
     precio_mayorista: string | number | null;
     costo_promedio: string | number;
+    codigo_proveedor: string | null;
   }>(
-    `SELECT id, codigo_barras, precio_venta, precio_mayorista, costo_promedio
+    `SELECT id, codigo_barras, precio_venta, precio_mayorista, costo_promedio, codigo_proveedor
      FROM ${tP} WHERE empresa_id=$1::uuid AND codigo_barras IS NOT NULL`,
     [empresaId]
   );
@@ -93,6 +101,7 @@ export async function buildPreciosResolverMaps(schemaRaw: string, empresaId: str
       precio_venta: Number(r.precio_venta),
       precio_mayorista: r.precio_mayorista != null ? Number(r.precio_mayorista) : null,
       costo_promedio: Number(r.costo_promedio),
+      codigo_proveedor: r.codigo_proveedor,
     });
   }
   return { productosByCodigo };
@@ -121,6 +130,7 @@ export function buildPreciosPreview(parsed: PrecioParsed[], maps: PrecioResolver
         p.precio_venta_actual = existente.precio_venta;
         p.precio_mayorista_actual = existente.precio_mayorista;
         p.costo_actual = existente.costo_promedio;
+        p.codigo_proveedor_actual = existente.codigo_proveedor;
         action = "UPDATE"; actualizar++;
       }
     }
@@ -132,6 +142,8 @@ export function buildPreciosPreview(parsed: PrecioParsed[], maps: PrecioResolver
       errors: p.errors,
       data: {
         CODIGO_BARRAS: p.codigo_barras,
+        CODIGO_PROVEEDOR: p.codigo_proveedor ?? "",
+        CODIGO_PROVEEDOR_ACTUAL: p.codigo_proveedor_actual ?? "",
         PRECIO_VENTA: p.precio_venta ?? "",
         PRECIO_VENTA_ACTUAL: p.precio_venta_actual ?? "",
         PRECIO_MAYORISTA: p.precio_mayorista ?? "",
@@ -150,12 +162,13 @@ export function buildPreciosPreview(parsed: PrecioParsed[], maps: PrecioResolver
       movimientos_a_generar: 0, unidades_entrada: 0, unidades_salida: 0,
     },
     rows,
-    headers: ["CODIGO_BARRAS","PRECIO_VENTA","PRECIO_VENTA_ACTUAL","PRECIO_MAYORISTA","PRECIO_MAYORISTA_ACTUAL","COSTO_PROMEDIO","COSTO_ACTUAL"],
+    headers: ["CODIGO_BARRAS","CODIGO_PROVEEDOR","CODIGO_PROVEEDOR_ACTUAL","PRECIO_VENTA","PRECIO_VENTA_ACTUAL","PRECIO_MAYORISTA","PRECIO_MAYORISTA_ACTUAL","COSTO_PROMEDIO","COSTO_ACTUAL"],
   };
 }
 
 export const PRECIOS_TEMPLATE_ROW = {
   CODIGO_BARRAS: "7891234567890",
+  CODIGO_PROVEEDOR: "00001001",
   PRECIO_VENTA: 25000,
   PRECIO_MAYORISTA: 20000,
   COSTO_PROMEDIO: 15000,
@@ -191,9 +204,10 @@ export async function commitPrecios(
              precio_venta      = COALESCE($1::numeric, precio_venta),
              precio_mayorista  = COALESCE($2::numeric, precio_mayorista),
              costo_promedio    = COALESCE($3::numeric, costo_promedio),
+             codigo_proveedor  = COALESCE($6, codigo_proveedor),
              updated_at        = now()
            WHERE id=$4::uuid AND empresa_id=$5::uuid`,
-          [p.precio_venta, p.precio_mayorista, p.costo_promedio, p.match_id, empresaId]
+          [p.precio_venta, p.precio_mayorista, p.costo_promedio, p.match_id, empresaId, p.codigo_proveedor]
         );
         out.updated++;
       } catch (e) {
