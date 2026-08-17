@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import MontoInput from "@/components/ui/MontoInput";
-import { getProducto, productoExiste, updateProducto } from "@/lib/inventario/storage";
+import { getProducto, updateProducto } from "@/lib/inventario/storage";
 import type { MetodoValuacion } from "@/lib/inventario/types";
 import ProductImageUploader from "@/components/inventario/ProductImageUploader";
 import SelectFromList from "@/components/inventario/SelectFromList";
@@ -25,6 +25,7 @@ export default function EditarProductoPage() {
   const [form, setForm] = useState({
     nombre: "",
     sku: "",
+    codigo_proveedor: "",
     codigo_barras: "",
     codigo_barras_interno: false,
     costo_promedio: "",
@@ -117,6 +118,7 @@ export default function EditarProductoPage() {
       setForm({
         nombre: p.nombre,
         sku: p.sku,
+        codigo_proveedor: p.codigo_proveedor ?? "",
         codigo_barras: p.codigo_barras ?? "",
         codigo_barras_interno: p.codigo_barras_interno === true,
         costo_promedio: String(p.costo_promedio),
@@ -225,12 +227,6 @@ export default function EditarProductoPage() {
       return;
     }
 
-    const duplicado = await productoExiste(form.sku, form.nombre);
-    if (duplicado && duplicado.id !== id) {
-      setErrorDuplicado(`Ya existe "${duplicado.nombre}" con SKU ${duplicado.sku}.`);
-      return;
-    }
-
     setSubmitting(true);
     try {
       // Reglas de codigo en edicion:
@@ -241,7 +237,7 @@ export default function EditarProductoPage() {
       const cambioCodigo = codigoIngresado !== (codigoOriginal ?? "");
       const updatePayload: Parameters<typeof updateProducto>[1] = {
         nombre: form.nombre.trim().toUpperCase(),
-        sku: form.sku.trim().toUpperCase(),
+        codigo_proveedor: form.codigo_proveedor.trim().toUpperCase() || null,
         costo_promedio: parseFloat(form.costo_promedio) || 0,
         precio_venta: parseFloat(form.precio_venta) || 0,
         precio_mayorista: form.precio_mayorista.trim() === "" ? null : (parseFloat(form.precio_mayorista) || 0),
@@ -334,15 +330,17 @@ export default function EditarProductoPage() {
 
           <div className="grid grid-cols-2 gap-6">
             <div>
-              <label className={labelClass}>SKU</label>
+              <label className={labelClass}>Código</label>
               <input
                 type="text"
-                name="sku"
-                value={form.sku}
+                name="codigo_proveedor"
+                value={form.codigo_proveedor}
                 onChange={handleChange}
                 className={`${inputClass} uppercase`}
-                required
               />
+              <p className="mt-1 text-xs text-gray-400">
+                SKU interno: <span className="font-mono">{form.sku || "—"}</span>
+              </p>
             </div>
             <div>
               <label className={labelClass}>Unidad de medida</label>

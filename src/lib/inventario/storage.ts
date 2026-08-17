@@ -281,6 +281,7 @@ export async function updateProducto(
   const body: Record<string, unknown> = {};
   if (datos.nombre !== undefined) body.nombre = datos.nombre;
   if (datos.sku !== undefined) body.sku = datos.sku;
+  if (datos.codigo_proveedor !== undefined) body.codigo_proveedor = datos.codigo_proveedor ?? null;
   if (datos.costo_promedio !== undefined) body.costo_promedio = datos.costo_promedio;
   if (datos.precio_venta !== undefined) body.precio_venta = datos.precio_venta;
   if (datos.precio_mayorista !== undefined) body.precio_mayorista = datos.precio_mayorista;
