@@ -35,8 +35,13 @@ export async function POST(request: NextRequest, ctxParams: { params: Promise<{ 
         { status: err.motivo === "venta_no_encontrada" ? 404 : 409 }
       );
     }
-    const msg = err instanceof Error ? err.message : "No se pudo anular la venta.";
-    console.error("[/api/ventas/[id]/anular POST]", msg);
-    return NextResponse.json(errorResponse(msg), { status: 500 });
+    // Errores no esperados (postgres, red, etc.): loguear el detalle real
+    // pero mostrarle al operador un mensaje del ERP, no un dump de la DB.
+    const detalle = err instanceof Error ? err.message : String(err);
+    console.error("[/api/ventas/[id]/anular POST]", detalle);
+    return NextResponse.json(
+      errorResponse("No se pudo anular la venta. El equipo ya recibio el detalle del error; probá de nuevo en unos minutos."),
+      { status: 500 }
+    );
   }
 }
