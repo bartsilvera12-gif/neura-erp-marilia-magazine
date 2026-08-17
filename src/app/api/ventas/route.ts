@@ -64,12 +64,33 @@ export async function GET(request: NextRequest) {
     const ventasQ = await ctx.supabase
       .from("ventas")
       .select(
-        "id, empresa_id, numero_control, moneda, tipo_cambio, subtotal, monto_iva, total, tipo_venta, plazo_dias, metodo_pago, fecha, cliente_id, factura_id, genera_nota_remision, nota_remision_numero, usuario_nombre"
+        "id, empresa_id, numero_control, moneda, tipo_cambio, subtotal, monto_iva, total, tipo_venta, plazo_dias, metodo_pago, fecha, cliente_id, factura_id, genera_nota_remision, nota_remision_numero, usuario_nombre, estado"
       )
       .eq("empresa_id", empresaId)
       .order("fecha", { ascending: false })
       .limit(500);
     if (ventasQ.error) throw new Error(ventasQ.error.message);
+
+    // Resolver estado_sifen de las facturas linkeadas — el boton "Anular" del
+    // frontend se oculta si la factura ya esta aprobada en SIFEN.
+    const facturaIds = [
+      ...new Set(
+        ventasQ.data
+          ?.map((r) => (r as unknown as { factura_id?: string | null }).factura_id)
+          .filter((x): x is string => typeof x === "string" && x.length > 0) ?? []
+      ),
+    ];
+    const estadoSifenByFactura = new Map<string, string>();
+    if (facturaIds.length > 0) {
+      const feQ = await ctx.supabase
+        .from("factura_electronica")
+        .select("factura_id, estado_sifen")
+        .eq("empresa_id", empresaId)
+        .in("factura_id", facturaIds);
+      for (const r of (feQ.data ?? []) as Array<{ factura_id: string; estado_sifen: string | null }>) {
+        if (r.estado_sifen) estadoSifenByFactura.set(r.factura_id, r.estado_sifen);
+      }
+    }
 
     const itemsQ = await ctx.supabase
       .from("ventas_items")
@@ -117,6 +138,11 @@ export async function GET(request: NextRequest) {
         nota_remision_numero: (r as unknown as { nota_remision_numero?: string | null }).nota_remision_numero ?? null,
         fecha: r.fecha,
         usuario_nombre: r.usuario_nombre ?? null,
+        estado: (r as unknown as { estado?: string }).estado ?? "completada",
+        factura_estado_sifen: (() => {
+          const fid = (r as unknown as { factura_id?: string | null }).factura_id ?? null;
+          return fid ? estadoSifenByFactura.get(fid) ?? null : null;
+        })(),
       };
     });
 

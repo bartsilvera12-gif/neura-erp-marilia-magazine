@@ -83,4 +83,10 @@ export interface Venta {
 
   /** Nombre del usuario que registró la venta (auditoría). */
   usuario_nombre?: string | null;
+
+  /** Estado interno de la venta. 'anulada' bloquea reimpresion/devolucion. */
+  estado?: "completada" | "anulada" | string;
+
+  /** Estado SIFEN de la factura electronica linkeada (si aplica). */
+  factura_estado_sifen?: string | null;
 }

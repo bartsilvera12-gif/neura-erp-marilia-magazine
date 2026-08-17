@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { RotateCcw, Printer, FileText, Truck, ChevronDown, ClipboardList } from "lucide-react";
+import { RotateCcw, Printer, FileText, Truck, ChevronDown, ClipboardList, Ban } from "lucide-react";
+import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
 import EdgeScrollArea from "@/components/ui/EdgeScrollArea";
 import { FancySelect } from "@/components/ui/FancySelect";
 import MobileFab from "@/components/ui/MobileFab";
@@ -108,6 +109,38 @@ export default function VentasPage() {
   // Para no distraer al cajero: caja e historial de ventas arrancan colapsados;
   // solo "Pedidos por cobrar" queda siempre visible.
   const [showOrdenes, setShowOrdenes] = useState(false);
+
+  // Anulacion inline: id de la venta cuya confirmacion esta en vuelo.
+  const [anulandoId, setAnulandoId] = useState<string | null>(null);
+
+  async function anularVenta(v: Venta) {
+    const motivo = window.prompt(
+      `Anular la venta ${v.numero_control}?\n\n` +
+        `Se reingresa el stock y se marca como anulada. Esta accion no se puede deshacer.\n` +
+        `Motivo (opcional):`,
+      ""
+    );
+    if (motivo === null) return; // Cancel
+    setAnulandoId(v.id);
+    try {
+      const r = await fetchWithSupabaseSession(`/api/ventas/${v.id}/anular`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ motivo: motivo.trim() || null }),
+      });
+      const j = await r.json().catch(() => ({} as { error?: string; success?: boolean }));
+      if (!r.ok || j?.success === false) {
+        alert(j?.error ?? "No se pudo anular la venta.");
+        return;
+      }
+      // Refrescar el listado optimisticamente marcando la venta como anulada.
+      setTodas((prev) => prev.map((x) => (x.id === v.id ? { ...x, estado: "anulada" } : x)));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error de red al anular.");
+    } finally {
+      setAnulandoId(null);
+    }
+  }
 
   // Feature flag server-side: sin él, la UI de devoluciones no se muestra.
   useEffect(() => {
@@ -336,8 +369,17 @@ export default function VentasPage() {
                       </td>
                       <td className="py-4 text-center align-middle" onClick={(e) => e.stopPropagation()}>
                         <div className="inline-flex items-center gap-1.5">
+                          {v.estado === "anulada" && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] font-semibold text-red-700"
+                              title="Venta anulada"
+                            >
+                              <Ban className="h-3 w-3" aria-hidden />
+                              Anulada
+                            </span>
+                          )}
                           {/* El motor rechaza ventas anuladas server-side con un mensaje claro. */}
-                          {devolucionesOn && (
+                          {devolucionesOn && v.estado !== "anulada" && (
                             <button
                               type="button"
                               onClick={() => setDevolverVentaId(v.id)}
@@ -346,6 +388,21 @@ export default function VentasPage() {
                             >
                               <RotateCcw className="h-3.5 w-3.5 shrink-0" aria-hidden />
                               Devolver
+                            </button>
+                          )}
+                          {/* Anular: solo si la venta no esta ya anulada y la factura
+                              electronica no fue aprobada por SIFEN (para esas hay que
+                              emitir nota de credito, no anular). */}
+                          {v.estado !== "anulada" && v.factura_estado_sifen !== "aprobado" && (
+                            <button
+                              type="button"
+                              onClick={() => void anularVenta(v)}
+                              disabled={anulandoId === v.id}
+                              className={`${BTN_ACCION} border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100 disabled:opacity-50`}
+                              title="Anular la venta: reingresa stock y la marca como anulada. No aplica a facturas SIFEN aprobadas."
+                            >
+                              <Ban className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                              {anulandoId === v.id ? "Anulando…" : "Anular"}
                             </button>
                           )}
                           {/* El ticket normal es lo que se imprime al cobrar, asi que
