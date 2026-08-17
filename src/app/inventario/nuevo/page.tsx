@@ -48,7 +48,6 @@ export default function NuevoItemPage() {
   const [tipoCorte, setTipoCorte] = useState<"masculino" | "femenino" | "unisex">("unisex");
   const [precioCosto, setPrecioCosto] = useState("");
   const [precioMayorista, setPrecioMayorista] = useState("");
-  const [precioMinorista, setPrecioMinorista] = useState("");
   const [precioVenta, setPrecioVenta] = useState("");
   const [stockActual, setStockActual] = useState("");
   const [stockMinimo, setStockMinimo] = useState("");
@@ -170,7 +169,6 @@ export default function NuevoItemPage() {
           stock_minimo: Number(stockMinimo) || 0,
           precio_costo: Number(precioCosto) || 0,
           precio_mayorista: Number(precioMayorista) || 0,
-          precio_minorista: Number(precioMinorista) || 0,
           precio_venta: Number(precioVenta) || 0,
           codigo_barras: cb || null,
           ubicacion_principal_id: ubicacionId || null,
@@ -223,7 +221,6 @@ export default function NuevoItemPage() {
   const costoNum = Number(precioCosto) || 0;
   const tiersMargen = [
     { label: "Mayorista", val: Number(precioMayorista) || 0 },
-    { label: "Minorista", val: Number(precioMinorista) || 0 },
     { label: "Venta", val: Number(precioVenta) || 0 },
   ].filter((t) => t.val > 0);
 
@@ -319,10 +316,6 @@ export default function NuevoItemPage() {
             <div>
               <label className={labelClass}>Precio mayorista</label>
               <MontoInput value={precioMayorista} onChange={(n) => setPrecioMayorista(String(n))} placeholder="Ej: 40000" className={inputClass} decimals={false} />
-            </div>
-            <div>
-              <label className={labelClass}>Precio minorista</label>
-              <MontoInput value={precioMinorista} onChange={(n) => setPrecioMinorista(String(n))} placeholder="Ej: 55000" className={inputClass} decimals={false} />
             </div>
             <div>
               <label className={labelClass}>Precio venta</label>

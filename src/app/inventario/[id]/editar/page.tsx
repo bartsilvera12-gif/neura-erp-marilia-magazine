@@ -534,7 +534,7 @@ export default function EditarProductoPage() {
               </div>
             </div>
 
-            {/* Precios opcionales — se usan según canal, no reemplazan al precio de venta. */}
+            {/* Precio mayorista opcional — se usa cuando la venta se marca como mayorista. */}
             <div className="mt-4 grid grid-cols-2 gap-6">
               <div>
                 <label className={labelClass}>
@@ -543,17 +543,6 @@ export default function EditarProductoPage() {
                 <MontoInput
                   value={form.precio_mayorista}
                   onChange={(n) => setForm((prev) => ({ ...prev, precio_mayorista: String(n) }))}
-                  className={inputClass}
-                  decimals={false}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>
-                  Precio minorista (Gs.) <span className="text-xs font-normal text-gray-400">(opcional)</span>
-                </label>
-                <MontoInput
-                  value={form.precio_minorista}
-                  onChange={(n) => setForm((prev) => ({ ...prev, precio_minorista: String(n) }))}
                   className={inputClass}
                   decimals={false}
                 />

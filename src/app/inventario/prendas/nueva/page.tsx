@@ -15,7 +15,6 @@ interface VarianteRow {
   stock_minimo: string;
   precio_costo: string;
   precio_mayorista: string;
-  precio_minorista: string;
   precio_venta: string;
   codigo_barras: string;
 }
@@ -59,7 +58,6 @@ export default function NuevaPrendaPage() {
   // Precios por defecto que llenan la matriz
   const [defCosto, setDefCosto] = useState("");
   const [defMayorista, setDefMayorista] = useState("");
-  const [defMinorista, setDefMinorista] = useState("");
   const [defVenta, setDefVenta] = useState("");
   const [defStock, setDefStock] = useState("0");
   const [defStockMin, setDefStockMin] = useState("0");
@@ -114,7 +112,7 @@ export default function NuevaPrendaPage() {
           key,
           color_nombre: cn, talla_nombre: tn,
           stock_actual: defStock, stock_minimo: defStockMin,
-          precio_costo: defCosto, precio_mayorista: defMayorista, precio_minorista: defMinorista, precio_venta: defVenta,
+          precio_costo: defCosto, precio_mayorista: defMayorista, precio_venta: defVenta,
           codigo_barras: "",
         });
       }
@@ -149,7 +147,7 @@ export default function NuevaPrendaPage() {
           color_nombre: v.color_nombre, talla_nombre: v.talla_nombre,
           stock_actual: Number(v.stock_actual) || 0, stock_minimo: Number(v.stock_minimo) || 0,
           precio_costo: Number(v.precio_costo) || 0, precio_mayorista: Number(v.precio_mayorista) || 0,
-          precio_minorista: Number(v.precio_minorista) || 0, precio_venta: Number(v.precio_venta) || 0,
+          precio_venta: Number(v.precio_venta) || 0,
           codigo_barras: v.codigo_barras || null, ubicacion_principal_id: ubicacionId || null,
         })),
       };
@@ -408,7 +406,6 @@ export default function NuevaPrendaPage() {
           <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
             <div><label className="block text-[11px] text-gray-400 mb-1">Costo</label><input className={cellCls} value={defCosto} onChange={(e) => setDefCosto(e.target.value)} /></div>
             <div><label className="block text-[11px] text-gray-400 mb-1">Mayorista</label><input className={cellCls} value={defMayorista} onChange={(e) => setDefMayorista(e.target.value)} /></div>
-            <div><label className="block text-[11px] text-gray-400 mb-1">Minorista</label><input className={cellCls} value={defMinorista} onChange={(e) => setDefMinorista(e.target.value)} /></div>
             <div><label className="block text-[11px] text-gray-400 mb-1">Venta</label><input className={cellCls} value={defVenta} onChange={(e) => setDefVenta(e.target.value)} /></div>
             <div><label className="block text-[11px] text-gray-400 mb-1">Stock</label><input className={cellCls} value={defStock} onChange={(e) => setDefStock(e.target.value)} /></div>
             <div><label className="block text-[11px] text-gray-400 mb-1">Stock mín</label><input className={cellCls} value={defStockMin} onChange={(e) => setDefStockMin(e.target.value)} /></div>
@@ -430,7 +427,7 @@ export default function NuevaPrendaPage() {
                 <tr className="text-gray-500 text-left">
                   <th className="p-1">Color</th><th className="p-1">Talla</th>
                   <th className="p-1">Stock</th><th className="p-1">St.mín</th>
-                  <th className="p-1">Costo</th><th className="p-1">Mayorista</th><th className="p-1">Minorista</th><th className="p-1">Venta</th>
+                  <th className="p-1">Costo</th><th className="p-1">Mayorista</th><th className="p-1">Venta</th>
                   <th className="p-1">Cód. barras</th><th className="p-1"></th>
                 </tr>
               </thead>
@@ -443,7 +440,6 @@ export default function NuevaPrendaPage() {
                     <td className="p-1 w-16"><input className={cellCls} value={v.stock_minimo} onChange={(e) => updateVar(v.key, { stock_minimo: e.target.value })} /></td>
                     <td className="p-1 w-20"><input className={cellCls} value={v.precio_costo} onChange={(e) => updateVar(v.key, { precio_costo: e.target.value })} /></td>
                     <td className="p-1 w-20"><input className={cellCls} value={v.precio_mayorista} onChange={(e) => updateVar(v.key, { precio_mayorista: e.target.value })} /></td>
-                    <td className="p-1 w-20"><input className={cellCls} value={v.precio_minorista} onChange={(e) => updateVar(v.key, { precio_minorista: e.target.value })} /></td>
                     <td className="p-1 w-20"><input className={cellCls} value={v.precio_venta} onChange={(e) => updateVar(v.key, { precio_venta: e.target.value })} /></td>
                     <td className="p-1 w-28"><input className={cellCls} value={v.codigo_barras} onChange={(e) => updateVar(v.key, { codigo_barras: e.target.value })} /></td>
                     <td className="p-1"><button type="button" onClick={() => removeVar(v.key)} className="text-red-500 hover:text-red-700">✕</button></td>
