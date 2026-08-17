@@ -19,7 +19,7 @@ const PRODUCTO_COLS =
   "imagen_path_2, imagen_url_2, imagen_path_3, imagen_url_3, " +
   "categoria_principal_id, ubicacion_principal_id, proveedor_principal_id, " +
   "es_vendible, es_insumo, controla_stock, destacado, visible_web, valorizado, unidad_compra, unidad_receta, " +
-  "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
+  "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_costo, precio_mayorista, precio_minorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
   "color_nombre, talla_nombre, producto_base_id, codigo_proveedor, genero";
 
 function toNumber(v: unknown): unknown {

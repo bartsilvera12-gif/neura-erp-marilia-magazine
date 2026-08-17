@@ -283,6 +283,8 @@ export async function updateProducto(
   if (datos.sku !== undefined) body.sku = datos.sku;
   if (datos.costo_promedio !== undefined) body.costo_promedio = datos.costo_promedio;
   if (datos.precio_venta !== undefined) body.precio_venta = datos.precio_venta;
+  if (datos.precio_mayorista !== undefined) body.precio_mayorista = datos.precio_mayorista;
+  if (datos.precio_minorista !== undefined) body.precio_minorista = datos.precio_minorista;
   if (datos.stock_actual !== undefined) body.stock_actual = datos.stock_actual;
   if (datos.stock_minimo !== undefined) body.stock_minimo = datos.stock_minimo;
   if (datos.unidad_medida !== undefined) body.unidad_medida = datos.unidad_medida;

@@ -30,6 +30,8 @@ export default function EditarProductoPage() {
     costo_promedio: "",
     markup: "",
     precio_venta: "",
+    precio_mayorista: "",
+    precio_minorista: "",
     stock_actual: "",
     stock_minimo: "",
     unidad_medida: "",
@@ -120,6 +122,8 @@ export default function EditarProductoPage() {
         costo_promedio: String(p.costo_promedio),
         markup: markup.toFixed(2),
         precio_venta: String(p.precio_venta),
+        precio_mayorista: p.precio_mayorista != null ? String(p.precio_mayorista) : "",
+        precio_minorista: p.precio_minorista != null ? String(p.precio_minorista) : "",
         stock_actual: String(p.stock_actual),
         stock_minimo: String(p.stock_minimo),
         unidad_medida: p.unidad_medida,
@@ -240,6 +244,8 @@ export default function EditarProductoPage() {
         sku: form.sku.trim().toUpperCase(),
         costo_promedio: parseFloat(form.costo_promedio) || 0,
         precio_venta: parseFloat(form.precio_venta) || 0,
+        precio_mayorista: form.precio_mayorista.trim() === "" ? null : (parseFloat(form.precio_mayorista) || 0),
+        precio_minorista: form.precio_minorista.trim() === "" ? null : (parseFloat(form.precio_minorista) || 0),
         stock_actual: parseInt(form.stock_actual) || 0,
         stock_minimo: parseInt(form.stock_minimo) || 0,
         unidad_medida: form.unidad_medida.trim().toUpperCase(),
@@ -526,6 +532,32 @@ export default function EditarProductoPage() {
                   className={inputClass}
                   decimals={false}
                   required
+                />
+              </div>
+            </div>
+
+            {/* Precios opcionales — se usan según canal, no reemplazan al precio de venta. */}
+            <div className="mt-4 grid grid-cols-2 gap-6">
+              <div>
+                <label className={labelClass}>
+                  Precio mayorista (Gs.) <span className="text-xs font-normal text-gray-400">(opcional)</span>
+                </label>
+                <MontoInput
+                  value={form.precio_mayorista}
+                  onChange={(n) => setForm((prev) => ({ ...prev, precio_mayorista: String(n) }))}
+                  className={inputClass}
+                  decimals={false}
+                />
+              </div>
+              <div>
+                <label className={labelClass}>
+                  Precio minorista (Gs.) <span className="text-xs font-normal text-gray-400">(opcional)</span>
+                </label>
+                <MontoInput
+                  value={form.precio_minorista}
+                  onChange={(n) => setForm((prev) => ({ ...prev, precio_minorista: String(n) }))}
+                  className={inputClass}
+                  decimals={false}
                 />
               </div>
             </div>

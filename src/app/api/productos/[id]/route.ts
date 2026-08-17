@@ -14,7 +14,7 @@ const PRODUCTO_COLS =
   "imagen_path_2, imagen_url_2, imagen_path_3, imagen_url_3, " +
   "categoria_principal_id, ubicacion_principal_id, proveedor_principal_id, " +
   "es_vendible, es_insumo, controla_stock, destacado, visible_web, valorizado, unidad_compra, unidad_receta, " +
-  "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_mayorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
+  "factor_compra_receta, tiempo_prep_minutos, descripcion, precio_costo, precio_mayorista, precio_minorista, cantidad_minima_mayorista, precio_distribuidor, modo_receta, " +
   "color_nombre, talla_nombre, codigo_proveedor, genero";
 
 function toNumber(v: unknown): unknown {
@@ -190,6 +190,7 @@ export async function PATCH(
     if (body.descripcion !== undefined)
       patch.descripcion = body.descripcion == null ? null : String(body.descripcion).trim() || null;
     if (body.precio_mayorista !== undefined) patch.precio_mayorista = toNumberOrNull(body.precio_mayorista);
+    if (body.precio_minorista !== undefined) patch.precio_minorista = toNumberOrNull(body.precio_minorista);
     if (body.cantidad_minima_mayorista !== undefined) patch.cantidad_minima_mayorista = toNumberOrNull(body.cantidad_minima_mayorista);
     if (body.precio_distribuidor !== undefined) patch.precio_distribuidor = toNumberOrNull(body.precio_distribuidor);
     if (body.modo_receta !== undefined) {
