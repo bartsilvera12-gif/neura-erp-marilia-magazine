@@ -271,6 +271,8 @@ export interface SifenPayloadItem {
   subtotal: number;
   iva: number;
   total: number;
+  /** Código de referencia del producto (codigo_proveedor). Va como dCodInt en el DE. */
+  codigo?: string | null;
 }
 
 export interface SifenPayloadMeta {

@@ -31,7 +31,7 @@ export async function loadValidatedSifenPayload(
 
   const { data: factura, error: errFactura } = await supabase
     .from("facturas")
-    .select("id, cliente_id, cliente_razon_social, cliente_ruc, numero_factura, fecha, tipo, moneda, monto, saldo")
+    .select("id, cliente_id, cliente_razon_social, cliente_ruc, numero_factura, fecha, tipo, moneda, monto, saldo, origen_venta_id")
     .eq("id", fid)
     .eq("empresa_id", empresaId)
     .maybeSingle();
@@ -141,6 +141,61 @@ export async function loadValidatedSifenPayload(
     } as BuildSifenPayloadInput["cliente"];
   }
 
+  // Enriquecer items con codigo_proveedor via la venta origen (si existe).
+  // El KuDE muestra dCodInt como "Codigo" y por defecto arrancaba en L1/L2/etc.;
+  // ahora sale el codigo real del catalogo cuando el producto lo tiene cargado.
+  // Se matchea por descripcion (unica por linea dentro de la misma venta).
+  const rawItems = (itemsRes.data ?? []) as unknown as Array<{
+    descripcion: string;
+    cantidad: unknown;
+    precio_unitario: unknown;
+    subtotal: unknown;
+    iva: unknown;
+    total: unknown;
+  }>;
+  const codigoByDescripcion = new Map<string, string>();
+  const ventaId = typeof factura.origen_venta_id === "string" && factura.origen_venta_id.trim()
+    ? factura.origen_venta_id.trim()
+    : null;
+  if (ventaId) {
+    try {
+      const vi = await supabase
+        .from("ventas_items")
+        .select("producto_id, producto_nombre")
+        .eq("venta_id", ventaId)
+        .eq("empresa_id", empresaId);
+      const viRows = ((vi.data ?? []) as unknown as Array<{ producto_id: string; producto_nombre: string }>).filter(
+        (r) => r.producto_id
+      );
+      const prodIds = [...new Set(viRows.map((r) => r.producto_id))];
+      if (prodIds.length > 0) {
+        const pQ = await supabase
+          .from("productos")
+          .select("id, codigo_proveedor")
+          .eq("empresa_id", empresaId)
+          .in("id", prodIds);
+        const codigoByProd = new Map<string, string>();
+        for (const p of (pQ.data ?? []) as Array<{ id: string; codigo_proveedor: string | null }>) {
+          if (p.codigo_proveedor && p.codigo_proveedor.trim()) {
+            codigoByProd.set(p.id, p.codigo_proveedor.trim());
+          }
+        }
+        for (const r of viRows) {
+          const codigo = codigoByProd.get(r.producto_id);
+          if (codigo && r.producto_nombre) {
+            codigoByDescripcion.set(r.producto_nombre.trim(), codigo);
+          }
+        }
+      }
+    } catch {
+      // Si la resolucion falla, cae al fallback L1/L2 — no bloqueamos la factura.
+    }
+  }
+  const itemsWithCodigo = rawItems.map((r) => ({
+    ...r,
+    codigo: codigoByDescripcion.get((r.descripcion ?? "").trim()) ?? null,
+  }));
+
   const buildInput: BuildSifenPayloadInput = {
     factura: {
       id: factura.id as string,
@@ -152,7 +207,7 @@ export async function loadValidatedSifenPayload(
       monto: factura.monto,
       saldo: factura.saldo,
     },
-    items: (itemsRes.data ?? []) as BuildSifenPayloadInput["items"],
+    items: itemsWithCodigo as BuildSifenPayloadInput["items"],
     cliente: clienteRow,
     config: configRes.data as BuildSifenPayloadInput["config"],
     facturaElectronica: electronicaRes.data as BuildSifenPayloadInput["facturaElectronica"],

@@ -51,6 +51,8 @@ export interface SifenBuildItemRow {
   subtotal: unknown;
   iva: unknown;
   total: unknown;
+  /** Código externo (codigo_proveedor). Se snapshotea desde el producto al momento de la venta. */
+  codigo?: string | null;
 }
 
 export interface SifenBuildClienteRow {
@@ -352,6 +354,7 @@ function mapItems(rows: SifenBuildItemRow[]): SifenPayloadItem[] {
     subtotal: num(r.subtotal),
     iva: num(r.iva),
     total: num(r.total),
+    codigo: r.codigo ? trimStr(r.codigo) : null,
   }));
 }
 

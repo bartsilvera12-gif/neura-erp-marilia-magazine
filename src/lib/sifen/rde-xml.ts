@@ -595,7 +595,14 @@ export function buildOfficialRdeFacturaElectronicaXml(
     const iAfec = tasa === 0 ? "3" : "1";
 
     itemsXml.push("<gCamItem>");
-    itemsXml.push(textEl("dCodInt", `L${idx + 1}`.slice(0, 20)));
+    // dCodInt: preferimos el codigo del producto (codigo_proveedor) si esta
+    // snapshoteado; si no, fallback al indice de linea (L1, L2...). SIFEN limita
+    // a 20 chars y solo acepta alfanumericos + algunos separadores; caracteres
+    // fuera del set se reemplazan por '-'.
+    const codigoRaw = (it.codigo ?? "").trim();
+    const codigoSanit = codigoRaw ? codigoRaw.replace(/[^A-Za-z0-9._-]/g, "-").slice(0, 20) : "";
+    const dCodInt = codigoSanit || `L${idx + 1}`.slice(0, 20);
+    itemsXml.push(textEl("dCodInt", dCodInt));
     const dDesProSer =
       esAmbienteTest && idx === 0
         ? SIFEN_TEST_LITERAL_DOCUMENTO
