@@ -38,11 +38,12 @@ function num(v: number | string): number {
   return typeof v === "number" ? v : Number(v);
 }
 
-function mapItems(rows: VentaItemRow[]): LineaVenta[] {
+function mapItems(rows: VentaItemRow[], codigoByProd?: Map<string, string | null>): LineaVenta[] {
   return rows.map((r) => ({
     producto_id: r.producto_id,
     producto_nombre: r.producto_nombre,
     sku: r.sku,
+    codigo_proveedor: codigoByProd?.get(r.producto_id) ?? null,
     cantidad: num(r.cantidad),
     precio_venta_original: num(r.precio_venta_original),
     precio_venta: num(r.precio_venta),
@@ -103,6 +104,22 @@ export async function GET(request: NextRequest) {
     const ventasRows = (ventasQ.data ?? []) as VentaRow[];
     const itemsRows = (itemsQ.data ?? []) as VentaItemRow[];
 
+    // codigo_proveedor por producto — no esta snapshotado en ventas_items,
+    // se lookupea de productos por producto_id. Se muestra en el listado en
+    // vez del SKU interno (ART-XXXXXX).
+    const codigoByProd = new Map<string, string | null>();
+    const prodIds = [...new Set(itemsRows.map((r) => r.producto_id).filter(Boolean))];
+    if (prodIds.length > 0) {
+      const cpQ = await ctx.supabase
+        .from("productos")
+        .select("id, codigo_proveedor")
+        .eq("empresa_id", empresaId)
+        .in("id", prodIds);
+      for (const p of (cpQ.data ?? []) as Array<{ id: string; codigo_proveedor: string | null }>) {
+        codigoByProd.set(p.id, p.codigo_proveedor ?? null);
+      }
+    }
+
     const byVenta = new Map<string, VentaItemRow[]>();
     for (const row of itemsRows) {
       const list = byVenta.get(row.venta_id) ?? [];
@@ -115,7 +132,7 @@ export async function GET(request: NextRequest) {
       return {
         id: r.id,
         numero_control: r.numero_control,
-        items: mapItems(lineRows),
+        items: mapItems(lineRows, codigoByProd),
         moneda: r.moneda === "USD" ? "USD" : "GS",
         tipo_cambio: num(r.tipo_cambio),
         subtotal: num(r.subtotal),

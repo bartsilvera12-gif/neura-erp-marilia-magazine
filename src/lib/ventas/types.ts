@@ -11,6 +11,8 @@ export interface LineaVenta {
   producto_id:           string;
   producto_nombre:       string;
   sku:                   string;
+  /** Codigo del catalogo del proveedor (para mostrar en la UI en vez del SKU interno). */
+  codigo_proveedor?:     string | null;
   /** Cantidad en la PRESENTACION elegida (ej. 2 = 2 cajas o 10 unidades). */
   cantidad:              number;
   /**

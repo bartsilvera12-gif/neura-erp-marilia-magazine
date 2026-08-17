@@ -77,7 +77,7 @@ function ResumenProductos({ v }: { v: Venta }) {
         {primero.producto_nombre}
       </span>
       <div className="flex items-center gap-2 mt-0.5">
-        <span className="font-mono text-xs text-gray-400">{primero.sku}</span>
+        <span className="font-mono text-xs text-gray-400">{primero.codigo_proveedor || primero.sku}</span>
         {extra > 0 && (
           <span className="bg-gray-100 text-gray-500 text-xs px-1.5 py-0.5 rounded-full font-medium">
             +{extra} más
@@ -169,11 +169,12 @@ export default function VentasPage() {
   }, []);
 
   const filtradas = todas.filter((v) => {
-    // Búsqueda por tokens: número de control, nombre o SKU de cualquier ítem.
+    // Busqueda por tokens: numero de control, nombre, codigo del proveedor o SKU.
     if (busqueda.trim() !== "" && !productoMatchesQuery(
       busqueda,
       v.numero_control,
       ...v.items.map((i) => i.producto_nombre),
+      ...v.items.map((i) => i.codigo_proveedor ?? ""),
       ...v.items.map((i) => i.sku),
     )) return false;
     // Tipo de venta
@@ -602,7 +603,7 @@ function VentaDetalleModal({ venta, onClose }: { venta: Venta; onClose: () => vo
                   <tr key={`${it.producto_id}-${idx}`}>
                     <td className="px-3 py-2">
                       <div className="font-medium text-slate-800">{it.producto_nombre}</div>
-                      <div className="font-mono text-xs text-slate-400">{it.sku}</div>
+                      <div className="font-mono text-xs text-slate-400">{it.codigo_proveedor || it.sku}</div>
                     </td>
                     <td className="px-3 py-2 text-center tabular-nums text-slate-700">{it.cantidad}</td>
                     <td className="px-3 py-2 text-right tabular-nums text-slate-600">{formatGs(it.precio_venta)}</td>
