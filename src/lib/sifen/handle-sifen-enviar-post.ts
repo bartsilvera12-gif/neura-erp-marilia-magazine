@@ -83,10 +83,11 @@ export async function handleSifenEnviarPost(
     });
   }
 
-  if (String(feRow.estado_sifen) !== "firmado") {
+  const estFe = String(feRow.estado_sifen);
+  if (estFe !== "firmado" && estFe !== "error_envio") {
     return NextResponse.json(
       errorResponse(
-        `Solo se puede enviar a SET con estado "firmado". Estado actual: "${feRow.estado_sifen}".`
+        `Solo se puede enviar a SET con XML firmado (estado "firmado" o reintento desde "error_envio"). Estado actual: "${estFe}".`
       ),
       { status: 409 }
     );

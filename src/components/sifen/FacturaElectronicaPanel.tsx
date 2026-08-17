@@ -775,7 +775,7 @@ export function FacturaElectronicaPanel({
                     {action === "reintentar-job" ? "Reintentando…" : "Reintentar"}
                   </button>
                 ) : null}
-                {stStr === "rechazado" && puedeGenerarXml ? (
+                {(stStr === "rechazado" || stStr === "error_envio") && puedeGenerarXml ? (
                   <button
                     type="button"
                     disabled={busy}
