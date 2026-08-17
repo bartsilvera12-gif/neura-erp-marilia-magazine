@@ -4,6 +4,11 @@ import { leerArchivoYAuth } from "@/lib/imports/import-helpers";
 import { parsePreciosRows, buildPreciosResolverMaps, buildPreciosPreview, commitPrecios } from "@/lib/imports/precios-importer";
 import { registrarImportAudit } from "@/lib/excel/imports-audit-pg";
 
+// El import corre en Node (pg pool) y puede tomar mas que el default de Vercel
+// con archivos grandes. 60s alcanza para 20k filas con el bulk UPDATE.
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 export async function POST(request: NextRequest) {
   const res = await leerArchivoYAuth(request);
   if (!res.ok) return NextResponse.json(errorResponse(res.error), { status: res.status });

@@ -193,27 +193,51 @@ export async function commitPrecios(
 
   const out: PreciosCommitOutcome = { updated: 0, skipped: 0, errors: 0, errorMessages: [] };
 
-  for (const chunk of chunked(parsed, 200)) {
+  // Contabilizar errores y omitidos primero, y quedarnos solo con los que
+  // realmente van a UPDATE.
+  const aActualizar: PrecioParsed[] = [];
+  for (const p of parsed) {
+    if (p.errors.length > 0) {
+      out.errors++;
+      out.errorMessages.push(`Fila ${p.row_number}: ${p.errors.join("; ")}`);
+      continue;
+    }
+    if (!p.match_id) { out.skipped++; continue; }
+    aActualizar.push(p);
+  }
+
+  // Bulk UPDATE: un solo query por chunk usando FROM (VALUES ...). Un UPDATE
+  // por fila -para 20k productos- excede el timeout de Vercel; hacerlo en
+  // lotes de 500 baja el tiempo total de minutos a segundos.
+  const CHUNK = 500;
+  for (const chunk of chunked(aActualizar, CHUNK)) {
+    const params: unknown[] = [empresaId];
+    const values: string[] = [];
     for (const p of chunk) {
-      if (p.errors.length > 0) { out.errors++; out.errorMessages.push(`Fila ${p.row_number}: ${p.errors.join("; ")}`); continue; }
-      if (!p.match_id) { out.skipped++; continue; }
-      try {
-        // COALESCE preserva el valor actual cuando la celda del Excel viene vacia.
-        await pool.query(
-          `UPDATE ${tP} SET
-             precio_venta      = COALESCE($1::numeric, precio_venta),
-             precio_mayorista  = COALESCE($2::numeric, precio_mayorista),
-             costo_promedio    = COALESCE($3::numeric, costo_promedio),
-             codigo_proveedor  = COALESCE($6, codigo_proveedor),
-             updated_at        = now()
-           WHERE id=$4::uuid AND empresa_id=$5::uuid`,
-          [p.precio_venta, p.precio_mayorista, p.costo_promedio, p.match_id, empresaId, p.codigo_proveedor]
-        );
-        out.updated++;
-      } catch (e) {
-        out.errors++;
-        out.errorMessages.push(`Fila ${p.row_number}: ${(e as Error).message.slice(0, 200)}`);
-      }
+      const i0 = params.length + 1; // $2, $3, $4, $5, $6...
+      params.push(p.match_id, p.precio_venta, p.precio_mayorista, p.costo_promedio, p.codigo_proveedor);
+      values.push(`($${i0}::uuid, $${i0 + 1}::numeric, $${i0 + 2}::numeric, $${i0 + 3}::numeric, $${i0 + 4}::text)`);
+    }
+    const sql = `
+      UPDATE ${tP} AS p SET
+        precio_venta     = COALESCE(v.precio_venta,     p.precio_venta),
+        precio_mayorista = COALESCE(v.precio_mayorista, p.precio_mayorista),
+        costo_promedio   = COALESCE(v.costo_promedio,   p.costo_promedio),
+        codigo_proveedor = COALESCE(v.codigo_proveedor, p.codigo_proveedor),
+        updated_at       = now()
+      FROM (VALUES ${values.join(",")})
+        AS v(id, precio_venta, precio_mayorista, costo_promedio, codigo_proveedor)
+      WHERE p.id = v.id AND p.empresa_id = $1::uuid
+    `;
+    try {
+      const res = await pool.query(sql, params);
+      out.updated += res.rowCount ?? chunk.length;
+    } catch (e) {
+      // Si falla el bulk, no sabemos cual fila fue el problema; reportamos el chunk entero como error.
+      out.errors += chunk.length;
+      out.errorMessages.push(
+        `Filas ${chunk[0].row_number}-${chunk[chunk.length - 1].row_number}: ${(e as Error).message.slice(0, 200)}`
+      );
     }
   }
   return out;
