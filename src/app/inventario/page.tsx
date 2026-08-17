@@ -201,6 +201,14 @@ export default function InventarioPage() {
             visible={isAdmin}
             onCompleted={() => setRefreshKey((k) => k + 1)}
           />
+          <ImportExcelButton
+            entidad="Precios"
+            previewUrl="/api/inventario/productos/precios/preview"
+            commitUrl="/api/inventario/productos/precios/commit"
+            templateUrl="/api/inventario/productos/precios/template"
+            visible={isAdmin}
+            onCompleted={() => setRefreshKey((k) => k + 1)}
+          />
           <input
             type="search"
             value={busqueda}

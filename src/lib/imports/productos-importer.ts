@@ -25,6 +25,7 @@ export interface ProductoParsed {
   unidad_medida: string;
   costo_promedio: number;
   precio_venta: number;
+  precio_mayorista: number | null;
   stock_actual: number;
   stock_minimo: number;
   metodo_valuacion: "CPP" | "FIFO" | "LIFO";
@@ -60,6 +61,13 @@ export function parseProductosRows(rows: Record<string, string>[]): ProductoPars
       unidad_medida: normalizeUpperText(pick(r, "UNIDAD_MEDIDA", "UNIDADMEDIDA")) || "UNIDAD",
       costo_promedio: pickNumber(r, "COSTO_PROMEDIO"),
       precio_venta: pickNumber(r, "PRECIO_VENTA"),
+      // Opcional: si no viene la columna, precio_mayorista queda null y el UPDATE lo respeta (no lo toca).
+      precio_mayorista: (() => {
+        const raw = pick(r, "PRECIO_MAYORISTA", "PRECIOMAYORISTA");
+        if (!raw || String(raw).trim() === "") return null;
+        const n = pickNumber(r, "PRECIO_MAYORISTA", "PRECIOMAYORISTA");
+        return n > 0 ? n : null;
+      })(),
       stock_actual: pickNumber(r, "STOCK_ACTUAL"),
       stock_minimo: pickNumber(r, "STOCK_MINIMO"),
       metodo_valuacion,
@@ -192,7 +200,9 @@ export function buildPreview(parsed: ProductoParsed[], maps: ResolverMaps): Prev
       data: {
         NOMBRE: p.nombre, SKU: p.sku, CODIGO_BARRAS: p.codigo_barras || "(auto)",
         CATEGORIA: p.categoria_nombre, PROVEEDOR: p.proveedor_nombre, UBICACION: p.ubicacion_nombre,
-        COSTO: p.costo_promedio, PRECIO: p.precio_venta, STOCK: p.stock_actual,
+        COSTO: p.costo_promedio, PRECIO: p.precio_venta,
+        MAYORISTA: p.precio_mayorista ?? "",
+        STOCK: p.stock_actual,
         STOCK_ANTERIOR: stockAnterior ?? "",
         MOVIMIENTO: stockMov,
       },
@@ -213,7 +223,7 @@ export function buildPreview(parsed: ProductoParsed[], maps: ResolverMaps): Prev
       unidades_salida: totalSalida,
     },
     rows,
-    headers: ["NOMBRE","SKU","CODIGO_BARRAS","CATEGORIA","PROVEEDOR_PRINCIPAL","UBICACION_PRINCIPAL","UNIDAD_MEDIDA","COSTO_PROMEDIO","PRECIO_VENTA","STOCK_ACTUAL","STOCK_MINIMO","METODO_VALUACION","ACTIVO"],
+    headers: ["NOMBRE","SKU","CODIGO_BARRAS","CATEGORIA","PROVEEDOR_PRINCIPAL","UBICACION_PRINCIPAL","UNIDAD_MEDIDA","COSTO_PROMEDIO","PRECIO_VENTA","PRECIO_MAYORISTA","STOCK_ACTUAL","STOCK_MINIMO","METODO_VALUACION","ACTIVO"],
   };
 }
 
@@ -345,6 +355,7 @@ export async function commitProductos(
             `UPDATE ${tP} SET
                nombre=$1, sku=$2, codigo_barras=NULLIF($3,''),
                unidad_medida=$4, costo_promedio=$5::numeric, precio_venta=$6::numeric,
+               precio_mayorista=COALESCE($16::numeric, precio_mayorista),
                stock_actual=$7::numeric, stock_minimo=$8::numeric,
                metodo_valuacion=$9, activo=$10::boolean,
                categoria_principal_id=$11::uuid, proveedor_principal_id=$12::uuid, ubicacion_principal_id=$13::uuid,
@@ -352,7 +363,7 @@ export async function commitProductos(
              WHERE id=$14::uuid AND empresa_id=$15::uuid`,
             [p.nombre, p.sku, p.codigo_barras, p.unidad_medida, p.costo_promedio, p.precio_venta,
              p.stock_actual, p.stock_minimo, p.metodo_valuacion, p.activo,
-             categoriaId, proveedorId, ubicacionId, p.match_id, empresaId]
+             categoriaId, proveedorId, ubicacionId, p.match_id, empresaId, p.precio_mayorista]
           );
           out.updated++;
           // Movimiento por delta (ajuste_manual + ENTRADA/SALIDA segun signo)
@@ -382,16 +393,16 @@ export async function commitProductos(
           const inserted = await pool.query<{ id: string }>(
             `INSERT INTO ${tP} (
                empresa_id, nombre, sku, codigo_barras, codigo_barras_interno,
-               unidad_medida, costo_promedio, precio_venta, stock_actual, stock_minimo,
+               unidad_medida, costo_promedio, precio_venta, precio_mayorista, stock_actual, stock_minimo,
                metodo_valuacion, activo, categoria_principal_id, proveedor_principal_id, ubicacion_principal_id
              ) VALUES (
                $1::uuid, $2, NULLIF($3,''), NULLIF($4,''), $5::boolean,
-               $6, $7::numeric, $8::numeric, $9::numeric, $10::numeric,
+               $6, $7::numeric, $8::numeric, $16::numeric, $9::numeric, $10::numeric,
                $11, $12::boolean, $13::uuid, $14::uuid, $15::uuid
              ) RETURNING id`,
             [empresaId, p.nombre, p.sku, codigoBarras, codigoInterno,
              p.unidad_medida, p.costo_promedio, p.precio_venta, p.stock_actual, p.stock_minimo,
-             p.metodo_valuacion, p.activo, categoriaId, proveedorId, ubicacionId]
+             p.metodo_valuacion, p.activo, categoriaId, proveedorId, ubicacionId, p.precio_mayorista]
           );
           out.inserted++;
           // Movimiento de inventario inicial si stock > 0
@@ -430,6 +441,7 @@ export const PRODUCTOS_TEMPLATE_ROW = {
   UNIDAD_MEDIDA: "UNIDAD",
   COSTO_PROMEDIO: 10000,
   PRECIO_VENTA: 15000,
+  PRECIO_MAYORISTA: 12000,
   STOCK_ACTUAL: 10,
   STOCK_MINIMO: 2,
   METODO_VALUACION: "CPP",
