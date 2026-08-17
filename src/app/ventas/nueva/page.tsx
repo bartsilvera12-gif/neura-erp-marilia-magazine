@@ -1967,14 +1967,12 @@ export default function NuevaVentaPage() {
 
             <div className="flex flex-col-reverse sm:flex-row gap-2 sm:justify-end">
               <button type="button" onClick={() => setConfirmSinStockOpen(false)} className="rounded-lg border border-slate-200 px-4 py-2 text-sm hover:bg-slate-50">
-                {faltantes.some((f) => f.bloqueante) ? "Entendido" : "Cancelar"}
+                Cancelar
               </button>
-              {/* El "vender igual" solo aparece si NINGÚN faltante es bloqueante. */}
-              {!faltantes.some((f) => f.bloqueante) && (
-                <button type="button" disabled={guardando} aria-busy={guardando} onClick={() => void confirmarVentaSinStock()} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {guardando ? "Guardando…" : "Confirmar venta de todos modos"}
-                </button>
-              )}
+              {/* Vender igual autoriza stock negativo aunque el producto tenga controla_stock=true. */}
+              <button type="button" disabled={guardando} aria-busy={guardando} onClick={() => void confirmarVentaSinStock()} className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-medium text-white hover:bg-amber-600 disabled:opacity-50 disabled:cursor-not-allowed">
+                {guardando ? "Guardando…" : "Confirmar venta de todos modos"}
+              </button>
             </div>
           </div>
         </div>

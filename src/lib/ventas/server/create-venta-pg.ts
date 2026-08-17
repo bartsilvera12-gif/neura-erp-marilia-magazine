@@ -465,11 +465,10 @@ export async function createVentaTransaccionalPg(
     }
   }
 
-  // Faltantes bloqueantes (controla_stock=true): SIEMPRE cortan, aunque se haya
-  // autorizado "vender sin stock". Los no bloqueantes solo cortan si no se
-  // autorizó.
-  const hayBloqueante = faltantes.some((f) => f.bloqueante);
-  if (faltantes.length > 0 && (hayBloqueante || !params.permitirSinStock)) {
+  // `permitirSinStock=true` autoriza vender siempre, incluso productos con
+  // controla_stock=true (el stock queda negativo, se puede regularizar despues).
+  // Si el operador no autorizo, cualquier faltante corta la venta.
+  if (faltantes.length > 0 && !params.permitirSinStock) {
     throw new StockInsuficienteError(faltantes);
   }
 
