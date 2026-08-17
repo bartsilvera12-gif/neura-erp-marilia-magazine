@@ -8,6 +8,7 @@ export interface ProductoPickerItem {
   sku: string;
   codigo_barras: string | null;
   codigo_barras_interno: boolean;
+  codigo_proveedor: string | null;
   precio_venta: number;
   costo_promedio: number;
   precio_minorista: number;
@@ -252,7 +253,7 @@ export default function ProductPickerModal({
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-slate-800 truncate">{p.nombre}</div>
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 flex-wrap">
-                          <span className="font-mono">{p.sku}</span>
+                          <span className="font-mono">{p.codigo_proveedor || p.sku}</span>
                           {p.codigo_barras && <span className="font-mono">· {p.codigo_barras}</span>}
                           {p.color_nombre && <span>· {p.color_nombre}</span>}
                           {p.talla_nombre && <span>· {p.talla_nombre}</span>}

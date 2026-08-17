@@ -1404,7 +1404,7 @@ export default function NuevaVentaPage() {
                               <ProductoThumb url={prod?.imagen_url} alt={item.producto_nombre} />
                               <div className="min-w-0">
                                 <p className="font-semibold text-slate-900 leading-snug">{item.producto_nombre}</p>
-                                <p className="font-mono text-[11px] text-slate-500">{item.sku}</p>
+                                <p className="font-mono text-[11px] text-slate-500">{prod?.codigo_proveedor || item.sku}</p>
                                 {item.presentacion_nombre && (
                                   <p className="text-[11px] text-slate-500">
                                     {item.presentacion_nombre}

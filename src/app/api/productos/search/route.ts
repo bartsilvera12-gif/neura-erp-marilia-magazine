@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
     let query = supabase
       .from("productos")
       .select(
-        "id, nombre, sku, codigo_barras, codigo_barras_interno, " +
+        "id, nombre, sku, codigo_barras, codigo_barras_interno, codigo_proveedor, " +
           "precio_venta, precio_mayorista, precio_distribuidor, cantidad_minima_mayorista, costo_promedio, stock_actual, stock_minimo, " +
           "unidad_medida, metodo_valuacion, imagen_path, imagen_url, " +
           "categoria_principal_id, proveedor_principal_id, ubicacion_principal_id, " +
