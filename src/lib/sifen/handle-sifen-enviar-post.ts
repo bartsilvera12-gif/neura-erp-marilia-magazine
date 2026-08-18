@@ -85,12 +85,18 @@ export async function handleSifenEnviarPost(
 
   const estFe = String(feRow.estado_sifen);
   if (estFe !== "firmado" && estFe !== "error_envio") {
-    return NextResponse.json(
-      errorResponse(
-        `Solo se puede enviar a SET con XML firmado (estado "firmado" o reintento desde "error_envio"). Estado actual: "${estFe}".`
-      ),
-      { status: 409 }
-    );
+    // Mensaje amigable para los estados mas comunes que no permiten reenvio,
+    // asi el operador ve una guia concreta y no un dump tecnico. El status 409
+    // se mantiene porque el frontend lo usa para no cambiar de vista.
+    const msg =
+      estFe === "enviado"
+        ? 'El DE ya fue enviado y esta esperando respuesta del SET. Presiona "Consultar lote" para ver el resultado.'
+        : estFe === "aprobado"
+          ? "El DE ya fue aprobado por el SET. No hace falta reenviar; ya podes imprimir el KuDE."
+          : estFe === "rechazado"
+            ? 'El DE fue rechazado por el SET. Regeneralo desde "Reintentar" para firmar y enviar de nuevo.'
+            : `Solo se puede enviar a SET con XML firmado (estado "firmado" o reintento desde "error_envio"). Estado actual: "${estFe}".`;
+    return NextResponse.json(errorResponse(msg), { status: 409 });
   }
 
   const signedPath = feRow.xml_firmado_path == null ? "" : String(feRow.xml_firmado_path).trim();
