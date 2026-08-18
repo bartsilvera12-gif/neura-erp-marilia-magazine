@@ -217,28 +217,82 @@ export async function handleSifenConsultaLotePost(
       ? null
       : String((feRow as { sifen_aprobado_at?: string | null }).sifen_aprobado_at);
 
-  let resp: ConsultaLoteRespuestaParsed;
-  try {
-    resp = await consultarLoteSifen({
-      dProtConsLote: protRaw,
-      empresaConfig: {
-        ambiente: ambienteSoap,
-        certificadoP12: p12Dl.data,
-        certificadoPassword: p12Password,
-      },
-      facturaElectronicaId: String(feRow.id),
-    });
-  } catch (e) {
-    const m = e instanceof Error ? e.message : String(e);
-    const label = ambienteSoap === "produccion" ? "SIFEN producción" : "SIFEN TEST";
-    return NextResponse.json(errorResponse(`Fallo al llamar a ${label} (consulta-lote): ${m}`), {
-      status: 502,
-    });
+  const cdcFactura = feRow.cdc == null ? null : String(feRow.cdc).trim() || null;
+
+  /**
+   * Protocolos candidatos, del más nuevo al más viejo.
+   *
+   * Cada envío pisa `sifen_d_prot_cons_lote`, así que si un DE salió más de una vez el
+   * protocolo guardado es el del ÚLTIMO lote — que puede ser el duplicado que SET rechazó
+   * mientras el primero fue aceptado. Los protocolos anteriores quedan en
+   * factura_electronica_evento, así que se prueban en orden hasta encontrar uno donde el DE
+   * figure aprobado. Así el operador aprieta "Consultar lote" y listo: no necesita saber que
+   * hubo más de un lote ni buscar protocolos a mano.
+   *
+   * Con `?protocolo=` explícito se respeta esa elección y se consulta solo ese.
+   */
+  const candidatos: string[] = [protRaw];
+  if (!protParam) {
+    const { data: evs } = await supabase
+      .from("factura_electronica_evento")
+      .select("detalle, created_at")
+      .eq("factura_electronica_id", feRow.id)
+      .eq("empresa_id", auth.empresa_id)
+      .eq("tipo", "respuesta")
+      .order("created_at", { ascending: false })
+      .limit(20);
+    for (const ev of evs ?? []) {
+      const det = (ev as { detalle?: { dProtConsLote?: unknown } | null }).detalle;
+      const cand = det?.dProtConsLote == null ? "" : String(det.dProtConsLote).trim();
+      if (/^[0-9]+$/.test(cand) && !candidatos.includes(cand)) candidatos.push(cand);
+    }
   }
 
-  const ultimaJson = buildUltimaConsultaPersistida(protRaw, resp);
-  const cdcFactura = feRow.cdc == null ? null : String(feRow.cdc).trim() || null;
-  const infer = inferirEstadoSifenTrasConsultaLote(previousEstado, cdcFactura, resp);
+  let resp: ConsultaLoteRespuestaParsed | null = null;
+  let protUsado = protRaw;
+  let infer: ReturnType<typeof inferirEstadoSifenTrasConsultaLote> | null = null;
+
+  for (const prot of candidatos.slice(0, 6)) {
+    let r: ConsultaLoteRespuestaParsed;
+    try {
+      r = await consultarLoteSifen({
+        dProtConsLote: prot,
+        empresaConfig: {
+          ambiente: ambienteSoap,
+          certificadoP12: p12Dl.data,
+          certificadoPassword: p12Password,
+        },
+        facturaElectronicaId: String(feRow.id),
+      });
+    } catch (e) {
+      // Si ya tenemos una respuesta previa, un candidato que falla no aborta la búsqueda.
+      if (resp != null) continue;
+      const m = e instanceof Error ? e.message : String(e);
+      const label = ambienteSoap === "produccion" ? "SIFEN producción" : "SIFEN TEST";
+      return NextResponse.json(errorResponse(`Fallo al llamar a ${label} (consulta-lote): ${m}`), {
+        status: 502,
+      });
+    }
+    const i = inferirEstadoSifenTrasConsultaLote(previousEstado, cdcFactura, r);
+    // El primero es el resultado por defecto; solo lo reemplaza un lote donde el DE figure aprobado.
+    if (resp == null) {
+      resp = r;
+      protUsado = prot;
+      infer = i;
+    }
+    if (i.nuevoEstado === "aprobado") {
+      resp = r;
+      protUsado = prot;
+      infer = i;
+      break;
+    }
+  }
+
+  if (resp == null || infer == null) {
+    return NextResponse.json(errorResponse("No se pudo consultar el lote en SET."), { status: 502 });
+  }
+
+  const ultimaJson = buildUltimaConsultaPersistida(protUsado, resp);
 
   let estadoFinal = previousEstado;
   if (infer.nuevoEstado != null) {
@@ -285,7 +339,7 @@ export async function handleSifenConsultaLotePost(
   const detalle: SifenApiConsultaLoteTestDetalle = {
     origen: options.soloAmbienteTest ? "api_consulta_lote_test" : "api_consulta_lote",
     factura_id: fid,
-    dProtConsLote: protRaw,
+    dProtConsLote: protUsado,
     dCodResLot: resp.dCodResLot,
     dMsgResLot: resp.dMsgResLot,
     httpStatus: resp.httpStatus,
