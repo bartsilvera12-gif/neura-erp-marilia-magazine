@@ -116,7 +116,20 @@ export async function handleSifenConsultaLotePost(
     });
   }
 
-  const protRaw = feRow.sifen_d_prot_cons_lote == null ? "" : String(feRow.sifen_d_prot_cons_lote).trim();
+  /**
+   * Protocolo a consultar. Por defecto el último guardado, pero se acepta uno explícito por
+   * query (`?protocolo=<n>`): cada envío pisa `sifen_d_prot_cons_lote`, así que si un DE se
+   * mandó más de una vez, el protocolo del lote que SET realmente aceptó puede no ser el
+   * último. Los anteriores quedan en factura_electronica_evento (tipo "respuesta").
+   */
+  const protParam = (request.nextUrl.searchParams.get("protocolo") ?? "").trim();
+  if (protParam && !/^[0-9]+$/.test(protParam)) {
+    return NextResponse.json(errorResponse("El parámetro protocolo debe ser numérico."), {
+      status: 400,
+    });
+  }
+  const protRaw =
+    protParam || (feRow.sifen_d_prot_cons_lote == null ? "" : String(feRow.sifen_d_prot_cons_lote).trim());
   if (!protRaw || !/^[0-9]+$/.test(protRaw)) {
     const enviarPath = options.soloAmbienteTest ? ".../sifen/enviar-test" : ".../sifen/enviar";
     return NextResponse.json(
