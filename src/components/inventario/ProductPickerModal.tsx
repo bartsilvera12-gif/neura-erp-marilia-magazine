@@ -253,8 +253,9 @@ export default function ProductPickerModal({
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-slate-800 truncate">{p.nombre}</div>
                         <div className="flex items-center gap-2 mt-0.5 text-xs text-slate-500 flex-wrap">
-                          <span className="font-mono">{p.codigo_proveedor || p.sku}</span>
-                          {p.codigo_barras && <span className="font-mono">· {p.codigo_barras}</span>}
+                          <span className="font-mono">{p.codigo_proveedor || p.codigo_barras || p.sku}</span>
+                          {/* Si ya mostramos el codigo_barras arriba (fallback), no lo repetimos al lado. */}
+                          {p.codigo_barras && p.codigo_proveedor && <span className="font-mono">· {p.codigo_barras}</span>}
                           {p.color_nombre && <span>· {p.color_nombre}</span>}
                           {p.talla_nombre && <span>· {p.talla_nombre}</span>}
                           {p.categoria_nombre && <span>· {p.categoria_nombre}</span>}
