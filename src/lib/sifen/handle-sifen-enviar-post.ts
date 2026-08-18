@@ -68,7 +68,7 @@ export async function handleSifenEnviarPost(
   const { data: feRow, error: errFe } = await supabase
     .from("factura_electronica")
     .select(
-      "id, factura_id, estado_sifen, xml_firmado_path, error, sifen_d_prot_cons_lote, sifen_ultima_respuesta_recibe_lote, sifen_ultima_respuesta_consulta_lote"
+      "id, factura_id, estado_sifen, xml_firmado_path, error, updated_at, sifen_d_prot_cons_lote, sifen_ultima_respuesta_recibe_lote, sifen_ultima_respuesta_consulta_lote"
     )
     .eq("factura_id", fid)
     .eq("empresa_id", auth.empresa_id)
@@ -97,6 +97,38 @@ export async function handleSifenEnviarPost(
             ? 'El DE fue rechazado por el SET. Regeneralo desde "Reintentar" para firmar y enviar de nuevo.'
             : `Solo se puede enviar a SET con XML firmado (estado "firmado" o reintento desde "error_envio"). Estado actual: "${estFe}".`;
     return NextResponse.json(errorResponse(msg), { status: 409 });
+  }
+
+  /**
+   * Claim atómico del documento antes de hablar con SET.
+   *
+   * El worker en background (jobs/run-sifen-job.ts) y el envío manual del panel pueden llegar
+   * acá con la misma factura y a segundos de distancia. Sin este candado los dos mandan el
+   * MISMO DE en dos lotes distintos: SIFEN encola el primero y rechaza el segundo (0301), y
+   * la respuesta que escribe último pisa el estado — por eso un DE ya aceptado podía quedar
+   * registrado como "error_envio". Deshabilitar botones en la UI no alcanza: es una carrera
+   * entre dos procesos.
+   *
+   * El UPDATE condicionado por `updated_at` solo lo puede ganar uno de los dos.
+   */
+  const claim = await supabase
+    .from("factura_electronica")
+    .update({ updated_at: new Date().toISOString() })
+    .eq("id", feRow.id)
+    .eq("empresa_id", auth.empresa_id)
+    .eq("updated_at", feRow.updated_at)
+    .select("id");
+
+  if (claim.error) {
+    return NextResponse.json(errorResponse(claim.error.message), { status: 500 });
+  }
+  if (!claim.data || claim.data.length === 0) {
+    return NextResponse.json(
+      errorResponse(
+        "Ya hay un envío en curso para esta factura (worker o envío manual). Esperá unos segundos y usá «Consultar lote» antes de reintentar: puede que el DE ya haya sido aceptado."
+      ),
+      { status: 409 }
+    );
   }
 
   const signedPath = feRow.xml_firmado_path == null ? "" : String(feRow.xml_firmado_path).trim();
@@ -245,7 +277,16 @@ export async function handleSifenEnviarPost(
       "SET no encoló el lote (0301).";
     nuevoProt = protTrim.length > 0 ? protTrim : null;
     let detalleRecibeSync = "";
+    /**
+     * OJO: `siRecepDE` es un servicio de RECEPCIÓN, no de consulta: llamarlo acá reenvía el
+     * mismo DE a SET. En producción eso es justamente lo que SIFEN rechaza ("reenvían el
+     * mismo DE en otros lotes"), y encima ensucia el diagnóstico con un 1264 que se refiere
+     * a ese servicio y no al envío por lote. Queda solo en TEST, donde el diagnóstico ayuda
+     * y el reenvío no tiene consecuencias fiscales. En producción el detalle real se
+     * obtiene consultando el lote con el protocolo.
+     */
     try {
+      if (ambienteSoap !== "test") throw new Error("recibe síncrono deshabilitado en producción");
       const sync = await recibirDeSifenSync({
         xmlFirmadoRde: xmlDl.data.toString("utf8"),
         empresaConfig: {
