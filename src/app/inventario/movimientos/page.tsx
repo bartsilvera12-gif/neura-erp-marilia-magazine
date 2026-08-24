@@ -100,9 +100,27 @@ export default function MovimientosPage() {
               {filtrados.length} de {todos.length} registros
             </span>
           </div>
-          <p className="text-xs text-gray-400">
-            Los movimientos se generan automáticamente desde <span className="font-medium text-gray-500">Compras</span>
-          </p>
+          <div className="flex items-center gap-4">
+            <a
+              href={
+                "/api/inventario/movimientos/export" +
+                (() => {
+                  const qs = new URLSearchParams();
+                  if (busqueda) qs.set("q", busqueda);
+                  if (fechaDesde) qs.set("desde", fechaDesde);
+                  if (fechaHasta) qs.set("hasta", fechaHasta);
+                  const s = qs.toString();
+                  return s ? "?" + s : "";
+                })()
+              }
+              className="text-sm text-white bg-gray-800 hover:bg-black rounded-lg px-4 py-2 transition-colors"
+            >
+              Exportar Excel
+            </a>
+            <p className="text-xs text-gray-400">
+              Los movimientos se generan automáticamente desde <span className="font-medium text-gray-500">Compras</span>
+            </p>
+          </div>
         </div>
 
         {/* Filtros — buscador + rango de fechas en una sola línea */}
