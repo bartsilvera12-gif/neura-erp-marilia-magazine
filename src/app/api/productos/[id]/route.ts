@@ -253,6 +253,31 @@ export async function PATCH(
       }
       if (!upd.data) return NextResponse.json(errorResponse(API_ERRORS.NOT_FOUND), { status: 404 });
       updRow = upd.data as unknown as Record<string, unknown>;
+
+      // Propagar precios a todas las variantes del mismo modelo (mismo
+      // codigo_proveedor). En moda todas las tallas/colores comparten precio,
+      // y la vista del sitio (`sitio_modelos`) elige UNA variante por modelo:
+      // sin esto, editar la variante equivocada no se refleja en la web.
+      const codProv = (updRow as { codigo_proveedor?: string | null }).codigo_proveedor;
+      const preciosPatch: Record<string, unknown> = {};
+      if (body.precio_venta !== undefined) preciosPatch.precio_venta = patch.precio_venta;
+      if (body.precio_mayorista !== undefined) preciosPatch.precio_mayorista = patch.precio_mayorista;
+      if (body.precio_minorista !== undefined) preciosPatch.precio_minorista = patch.precio_minorista;
+      if (body.precio_costo !== undefined) preciosPatch.precio_costo = patch.precio_costo;
+      if (body.precio_distribuidor !== undefined) preciosPatch.precio_distribuidor = patch.precio_distribuidor;
+      if (codProv && Object.keys(preciosPatch).length > 0 && body.aplicar_solo_variante !== true) {
+        try {
+          await sb
+            .from("productos")
+            .update(preciosPatch)
+            .eq("empresa_id", empresaId)
+            .eq("codigo_proveedor", codProv)
+            .neq("id", id);
+        } catch (err) {
+          console.error("[/api/productos/[id] PATCH] propagar precios variantes",
+            err instanceof Error ? err.message : err);
+        }
+      }
     } else {
       const { data: fresh } = await sb
         .from("productos").select(PRODUCTO_COLS).eq("empresa_id", empresaId).eq("id", id).maybeSingle();
