@@ -8,8 +8,9 @@ import EdgeScrollArea from "@/components/ui/EdgeScrollArea";
 import { FancySelect } from "@/components/ui/FancySelect";
 import MobileFab from "@/components/ui/MobileFab";
 import { getVentas } from "@/lib/ventas/storage";
-import PedidosPendientesCaja from "./PedidosPendientesCaja";
-import PedidosConsultaPendientes from "./PedidosConsultaPendientes";
+// Pedidos ocultados a pedido de Marilia; los componentes siguen en el repo por si se reactivan.
+// import PedidosPendientesCaja from "./PedidosPendientesCaja";
+// import PedidosConsultaPendientes from "./PedidosConsultaPendientes";
 import CajaControlPanel from "@/components/caja/CajaControlPanel";
 import DevolucionWizard from "@/components/devoluciones/DevolucionWizard";
 import { productoMatchesQuery } from "@/lib/productos/token-search";
@@ -219,8 +220,10 @@ export default function VentasPage() {
 
       <CajaControlPanel />
 
-      <PedidosConsultaPendientes />
-      <PedidosPendientesCaja />
+      {/* Pedidos ocultados a pedido de Marilia (todo se cobra directo desde
+          Caja). Se conservan importaciones para reactivar rapido. */}
+      {/* <PedidosConsultaPendientes /> */}
+      {/* <PedidosPendientesCaja /> */}
 
 
       {/* ── Tabla de ventas ───────────────────────────────────────────────────── */}
