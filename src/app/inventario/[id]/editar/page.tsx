@@ -13,6 +13,11 @@ interface CatRow { id: string; nombre: string }
 interface UbiRow { id: string; nombre: string; tipo: string }
 interface ProvRow { id: string; nombre: string }
 
+// Lista cerrada — evita que cada usuario invente su propia unidad y termine con
+// "UND", "UN.", "un" mezclados en la DB. Si aparece la necesidad de una nueva,
+// se agrega aca.
+const UNIDADES_MEDIDA = ["UNIDAD", "PAR", "SET", "PACK", "METRO", "KILO"] as const;
+
 export default function EditarProductoPage() {
   const router = useRouter();
   const params = useParams();
@@ -344,14 +349,17 @@ export default function EditarProductoPage() {
             </div>
             <div>
               <label className={labelClass}>Unidad de medida</label>
-              <input
-                type="text"
+              <select
                 name="unidad_medida"
-                value={form.unidad_medida}
+                value={(UNIDADES_MEDIDA as readonly string[]).includes(form.unidad_medida.toUpperCase()) ? form.unidad_medida.toUpperCase() : "UNIDAD"}
                 onChange={handleChange}
-                className={`${inputClass} uppercase`}
+                className={inputClass}
                 required
-              />
+              >
+                {UNIDADES_MEDIDA.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
             </div>
           </div>
 
