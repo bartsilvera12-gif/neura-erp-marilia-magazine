@@ -12,6 +12,9 @@ interface CatRow { id: string; nombre: string }
 interface UbiRow { id: string; nombre: string; tipo: string }
 interface ProvRow { id: string; nombre: string }
 
+// Lista cerrada — evita "UND", "UN.", "un" mezclados. Consistente con el editor.
+const UNIDADES_MEDIDA = ["UNIDAD", "PAR", "SET", "PACK", "METRO", "KILO"] as const;
+
 const inputClass =
   "w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:ring-2 focus:ring-[#4FAEB2] focus:outline-none bg-white text-sm";
 const labelClass = "block text-sm font-medium text-slate-700 mb-2";
@@ -62,6 +65,7 @@ export default function NuevoItemPage() {
   const [visibleWeb, setVisibleWeb] = useState(true);
   // Destacado: lo levanta el sitio para la sección de piezas destacadas.
   const [destacado, setDestacado] = useState(false);
+  const [unidadMedida, setUnidadMedida] = useState<(typeof UNIDADES_MEDIDA)[number]>("UNIDAD");
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -156,6 +160,7 @@ export default function NuevoItemPage() {
           tipo_corte: tipoCorte,
           proveedor_principal_id: proveedorId || null,
           estado: "activo",
+          unidad_medida: unidadMedida,
           visible_web: visibleWeb,
           // Sin publicar no tiene sentido destacar: el sitio nunca lo mostraría.
           destacado: destacado && visibleWeb,
@@ -352,7 +357,7 @@ export default function NuevoItemPage() {
 
         {/* Stock */}
         <div className="border-t border-slate-100 pt-6">
-          <div className="grid grid-cols-2 gap-5 max-w-md">
+          <div className="grid grid-cols-3 gap-5 max-w-xl">
             <div>
               <label className={labelClass}>Stock inicial</label>
               <input type="number" min={0} value={stockActual} onChange={(e) => setStockActual(e.target.value)} placeholder="Ej: 10" className={inputClass} />
@@ -360,6 +365,18 @@ export default function NuevoItemPage() {
             <div>
               <label className={labelClass}>Stock mínimo</label>
               <input type="number" min={0} value={stockMinimo} onChange={(e) => setStockMinimo(e.target.value)} placeholder="Ej: 2" className={inputClass} />
+            </div>
+            <div>
+              <label className={labelClass}>Unidad de medida</label>
+              <select
+                value={unidadMedida}
+                onChange={(e) => setUnidadMedida(e.target.value as (typeof UNIDADES_MEDIDA)[number])}
+                className={inputClass}
+              >
+                {UNIDADES_MEDIDA.map((u) => (
+                  <option key={u} value={u}>{u}</option>
+                ))}
+              </select>
             </div>
           </div>
           {Number(stockActual) > 0 && (

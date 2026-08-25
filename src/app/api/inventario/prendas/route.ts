@@ -63,6 +63,11 @@ export async function POST(request: NextRequest) {
   if (!nombreBase) return NextResponse.json(errorResponse("El nombre de la prenda es obligatorio."), { status: 400 });
   const tipoCorte = TIPO_CORTE.includes(base.tipo_corte as typeof TIPO_CORTE[number]) ? (base.tipo_corte as string) : "unisex";
   const estado = ESTADOS.includes(base.estado as typeof ESTADOS[number]) ? (base.estado as string) : "activo";
+  // Lista cerrada, en linea con el select de la UI. Cualquier cosa fuera de aca
+  // cae a UNIDAD.
+  const UNIDADES_MEDIDA = ["UNIDAD", "PAR", "SET", "PACK", "METRO", "KILO"];
+  const unidadMedidaRaw = normalizeUpperText(base.unidad_medida);
+  const unidadMedida = UNIDADES_MEDIDA.includes(unidadMedidaRaw) ? unidadMedidaRaw : "UNIDAD";
   if (variantes.length === 0) return NextResponse.json(errorResponse("Agregá al menos una variante (color/talla)."), { status: 400 });
 
   // El SKU es interno y no lo carga el usuario: se autogenera correlativo para
@@ -149,7 +154,8 @@ export async function POST(request: NextRequest) {
       }
       const codigoProveedor = normalizeUpperText(v.codigo_proveedor) || null;
       const flagCols = flags.map((f) => `, ${f.col}`).join("");
-      const flagPlaceholders = flags.map((_, i) => `,$${21 + i}::boolean`).join("");
+      // Se agrego `unidad_medida` como $8, por lo que los flags arrancan en $22.
+      const flagPlaceholders = flags.map((_, i) => `,$${22 + i}::boolean`).join("");
       const ins = await client.query<{ id: string }>(
         `INSERT INTO ${tProd} (
            empresa_id, nombre, sku, costo_promedio, precio_venta, stock_actual, stock_minimo,
@@ -159,14 +165,14 @@ export async function POST(request: NextRequest) {
            color_nombre, talla_nombre, codigo_proveedor${flagCols}
          ) VALUES (
            $1::uuid,$2,$3,$4::numeric,$5::numeric,$6::numeric,$7::numeric,
-           'UNIDAD','CPP',$8,false,
-           $9::uuid,$10::uuid,$11::uuid,
-           $12::uuid,$13::uuid,$14::uuid,$15::numeric,$16::numeric,$17::numeric,
-           $18,$19,$20${flagPlaceholders}
+           $8,'CPP',$9,false,
+           $10::uuid,$11::uuid,$12::uuid,
+           $13::uuid,$14::uuid,$15::uuid,$16::numeric,$17::numeric,$18::numeric,
+           $19,$20,$21${flagPlaceholders}
          ) RETURNING id`,
         [
           empresaId, nombreVar, sku, costo, num(v.precio_venta), stock, num(v.stock_minimo),
-          cb, categoriaId, v.ubicacion_principal_id ? String(v.ubicacion_principal_id) : null, proveedorId,
+          unidadMedida, cb, categoriaId, v.ubicacion_principal_id ? String(v.ubicacion_principal_id) : null, proveedorId,
           baseId, v.color_id ? String(v.color_id) : null, v.talla_id ? String(v.talla_id) : null,
           costo, num(v.precio_mayorista), num(v.precio_minorista),
           colorNombre, tallaNombre, codigoProveedor,

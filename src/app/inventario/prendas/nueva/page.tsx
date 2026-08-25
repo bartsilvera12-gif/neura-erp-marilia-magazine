@@ -7,6 +7,9 @@ import { useRouter } from "next/navigation";
 interface IdNombre { id: string; nombre: string }
 interface Ubic { id: string; nombre: string; tipo: string }
 
+// Lista cerrada — consistente con el editor y "Nuevo item".
+const UNIDADES_MEDIDA = ["UNIDAD", "PAR", "SET", "PACK", "METRO", "KILO"] as const;
+
 interface VarianteRow {
   key: string;
   color_nombre: string;
@@ -49,6 +52,7 @@ export default function NuevaPrendaPage() {
   // Publicado en el catálogo web (aplica a todas las variantes generadas).
   const [visibleWeb, setVisibleWeb] = useState(true);
   const [destacado, setDestacado] = useState(false);
+  const [unidadMedida, setUnidadMedida] = useState<(typeof UNIDADES_MEDIDA)[number]>("UNIDAD");
 
   // Colores y tallas se escriben como texto separado por coma.
   // Ej: "Negro, Blanco, Rosa" y "S, M, L, XL"
@@ -138,6 +142,7 @@ export default function NuevaPrendaPage() {
           nombre, categoria_id: categoriaId || null, tipo_corte: tipoCorte,
           material: material || null, temporada: temporada || null, marca: marca || null,
           descripcion: descripcion || null, proveedor_principal_id: proveedorId || null, estado,
+          unidad_medida: unidadMedida,
           visible_web: visibleWeb,
           destacado: destacado && visibleWeb,
         },
@@ -273,6 +278,18 @@ export default function NuevaPrendaPage() {
               <option value="activo">Activo</option>
               <option value="agotado">Agotado</option>
               <option value="discontinuado">Discontinuado</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs text-gray-500 mb-1">Unidad de medida</label>
+            <select
+              className={inputCls}
+              value={unidadMedida}
+              onChange={(e) => setUnidadMedida(e.target.value as (typeof UNIDADES_MEDIDA)[number])}
+            >
+              {UNIDADES_MEDIDA.map((u) => (
+                <option key={u} value={u}>{u}</option>
+              ))}
             </select>
           </div>
           <div className="md:col-span-3"><label className="block text-xs text-gray-500 mb-1">Descripción</label><textarea className={inputCls} rows={2} value={descripcion} onChange={(e) => setDescripcion(e.target.value)} /></div>
