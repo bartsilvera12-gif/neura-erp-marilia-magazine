@@ -115,6 +115,13 @@ export async function GET(request: NextRequest) {
     if (searchParams.get("destacado") === "true") {
       query = query.eq("destacado", true);
     }
+    // Solo con foto cargada: lo usa la pantalla de "Recién llegados" para
+    // que al elegir qué destacar no aparezcan productos sin foto (que en
+    // el sitio quedan como cards grises inutiles). imagen_url viene del
+    // storage publico, imagen_path del privado firmado en resolverImagenesPublicas.
+    if (searchParams.get("con_foto") === "true") {
+      query = query.or("imagen_url.not.is.null,imagen_path.not.is.null");
+    }
     // Género: "__sin__" trae los que faltan clasificar, que es la vista que
     // usa el operador para ir completando el catálogo.
     const genero = searchParams.get("genero");

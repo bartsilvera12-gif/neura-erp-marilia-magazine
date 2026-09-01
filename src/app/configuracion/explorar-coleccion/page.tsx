@@ -68,12 +68,14 @@ export default function ExplorarColeccionPage() {
 
   // Candidatos: la búsqueda la resuelve el servidor. Con 24.000 productos,
   // filtrar sobre una página traída de antemano no encontraba casi nada.
+  // con_foto=true: los que no tienen foto no aportan al carrusel (quedan
+  // como cards grises), así que el buscador ni los ofrece.
   useEffect(() => {
     const q = busqueda.trim();
     if (!q) { setCandidatos([]); return; }
     let cancel = false;
     const t = setTimeout(() => {
-      pedir("q=" + encodeURIComponent(q) + "&limit=40")
+      pedir("q=" + encodeURIComponent(q) + "&con_foto=true&limit=40")
         .then((rows) => { if (!cancel) setCandidatos(rows.filter((p) => !p.destacado)); })
         .catch(() => { if (!cancel) setCandidatos([]); });
     }, 350);
@@ -194,7 +196,7 @@ export default function ExplorarColeccionPage() {
         <input
           value={busqueda}
           onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, código de proveedor o código de barras…"
+          placeholder="Buscar entre productos con foto cargada…"
           className={inputCls}
         />
         <div className="mt-3 max-h-96 overflow-y-auto border border-slate-100 rounded-lg divide-y divide-slate-100">
@@ -203,7 +205,9 @@ export default function ExplorarColeccionPage() {
               Escribí para buscar entre todos los productos del catálogo.
             </p>
           ) : candidatos.length === 0 ? (
-            <p className="px-3 py-4 text-center text-xs text-slate-400">Sin coincidencias.</p>
+            <p className="px-3 py-4 text-center text-xs text-slate-400">
+              Sin coincidencias con foto cargada.
+            </p>
           ) : (
             candidatos.map((p) => (
               <div key={p.id} className="flex items-center gap-3 px-2 py-2">
