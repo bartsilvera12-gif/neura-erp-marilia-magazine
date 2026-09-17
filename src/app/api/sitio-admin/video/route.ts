@@ -19,12 +19,15 @@ import {
  * Video de presentación del home del sitio, administrado desde el ERP.
  *
  *   GET     — estado actual (video + poster) del tenant.
- *   POST     — sube/reemplaza el video y, opcional, el poster (multipart).
- *   DELETE   — quita el video completo (o solo el poster con ?poster=1).
+ *   POST    — sube/reemplaza el video y, opcional, el poster (multipart).
+ *   DELETE  — quita el video completo (o solo el poster con ?poster=1).
  *
+ * La tabla de esta feature vive explícitamente en `mariliaerp`. Esto evita que
+ * un fallback heredado de otra instancia apunte el módulo al schema equivocado.
  * El sitio público lo lee sin auth en /api/sitio/video.
  */
 
+const VIDEO_SCHEMA = "mariliaerp";
 const SELECT = "empresa_id, video_url, video_path, poster_url, poster_path, mime, activo, updated_at";
 
 type TenantCtx = NonNullable<Awaited<ReturnType<typeof getTenantSupabaseFromAuth>>>;
@@ -40,6 +43,7 @@ export async function GET(request: NextRequest) {
     const ctx = await getTenantSupabaseFromAuth(request);
     if (!ctx) return NextResponse.json(errorResponse(API_ERRORS.UNAUTHORIZED), { status: 401 });
     const { data, error } = await ctx.supabase
+      .schema(VIDEO_SCHEMA)
       .from("sitio_video")
       .select(SELECT)
       .eq("empresa_id", ctx.auth.empresa_id)
@@ -87,8 +91,11 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    try { await ensureSitioVideosBucket(supabase); }
-    catch (e) { console.error("[sitio-video] ensureBucket", e instanceof Error ? e.message : e); }
+    try {
+      await ensureSitioVideosBucket(supabase);
+    } catch (e) {
+      console.error("[sitio-video] ensureBucket", e instanceof Error ? e.message : e);
+    }
 
     const fila: Record<string, unknown> = {
       empresa_id: empresaId,
@@ -96,12 +103,15 @@ export async function POST(request: NextRequest) {
       updated_at: new Date().toISOString(),
     };
 
+    // Las variantes obsoletas se eliminan recién DESPUÉS de persistir la nueva
+    // referencia en DB. Así, si falla la subida o el upsert, el video anterior
+    // sigue disponible y la portada no queda apuntando a un archivo borrado.
+    let videosObsoletos: string[] = [];
+    let postersObsoletos: string[] = [];
+
     if (video instanceof File) {
-      // Si cambia la extensión (mp4 -> mov), borrar las otras variantes para no
-      // dejar huérfanos que compitan por la URL.
       const path = buildVideoPath(empresaId, video.type);
-      const otras = allVideoPaths(empresaId).filter((p) => p !== path);
-      if (otras.length) await supabase.storage.from(SITIO_VIDEOS_BUCKET).remove(otras);
+      videosObsoletos = allVideoPaths(empresaId).filter((p) => p !== path);
 
       const buf = Buffer.from(await video.arrayBuffer());
       const up = await supabase.storage
@@ -118,8 +128,7 @@ export async function POST(request: NextRequest) {
 
     if (poster instanceof File) {
       const path = buildPosterPath(empresaId, poster.type);
-      const otras = allPosterPaths(empresaId).filter((p) => p !== path);
-      if (otras.length) await supabase.storage.from(SITIO_VIDEOS_BUCKET).remove(otras);
+      postersObsoletos = allPosterPaths(empresaId).filter((p) => p !== path);
 
       const buf = Buffer.from(await poster.arrayBuffer());
       const up = await supabase.storage
@@ -134,11 +143,21 @@ export async function POST(request: NextRequest) {
     }
 
     const { data, error } = await supabase
+      .schema(VIDEO_SCHEMA)
       .from("sitio_video")
       .upsert(fila, { onConflict: "empresa_id" })
       .select(SELECT)
       .maybeSingle();
     if (error) throw new Error(error.message);
+
+    if (videosObsoletos.length) {
+      const rm = await supabase.storage.from(SITIO_VIDEOS_BUCKET).remove(videosObsoletos);
+      if (rm.error) console.error("[sitio-video] cleanup videos", rm.error.message);
+    }
+    if (postersObsoletos.length) {
+      const rm = await supabase.storage.from(SITIO_VIDEOS_BUCKET).remove(postersObsoletos);
+      if (rm.error) console.error("[sitio-video] cleanup posters", rm.error.message);
+    }
 
     return NextResponse.json(successResponse({ video: data }));
   } catch (err) {
@@ -156,26 +175,33 @@ export async function DELETE(request: NextRequest) {
     const soloPoster = new URL(request.url).searchParams.get("poster") === "1";
 
     if (soloPoster) {
-      await supabase.storage.from(SITIO_VIDEOS_BUCKET).remove(allPosterPaths(empresaId));
       const { data, error } = await supabase
+        .schema(VIDEO_SCHEMA)
         .from("sitio_video")
         .update({ poster_url: null, poster_path: null, updated_at: new Date().toISOString() })
         .eq("empresa_id", empresaId)
         .select(SELECT)
         .maybeSingle();
       if (error) throw new Error(error.message);
+
+      const rm = await supabase.storage.from(SITIO_VIDEOS_BUCKET).remove(allPosterPaths(empresaId));
+      if (rm.error) console.error("[sitio-video] delete poster", rm.error.message);
       return NextResponse.json(successResponse({ video: data ?? null }));
     }
 
-    // Quitar todo: archivos (video + poster) y la fila.
-    await supabase.storage
-      .from(SITIO_VIDEOS_BUCKET)
-      .remove([...allVideoPaths(empresaId), ...allPosterPaths(empresaId)]);
+    // Primero quitar la referencia pública; después limpiar archivos. Si Storage
+    // falla, queda un archivo huérfano pero nunca una portada rota.
     const { error } = await supabase
+      .schema(VIDEO_SCHEMA)
       .from("sitio_video")
       .delete()
       .eq("empresa_id", empresaId);
     if (error) throw new Error(error.message);
+
+    const rm = await supabase.storage
+      .from(SITIO_VIDEOS_BUCKET)
+      .remove([...allVideoPaths(empresaId), ...allPosterPaths(empresaId)]);
+    if (rm.error) console.error("[sitio-video] delete files", rm.error.message);
 
     return NextResponse.json(successResponse({ video: null }));
   } catch (err) {
