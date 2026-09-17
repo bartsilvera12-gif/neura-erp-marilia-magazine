@@ -110,7 +110,7 @@ export default function VideoPresentacionPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900">Video de presentación</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Se muestra al inicio de la portada del sitio. Se reproduce solo, en <strong>silencio</strong>,
+          Se muestra debajo del encabezado de la portada. Se reproduce solo, en <strong>silencio</strong>,
           y el visitante puede activar el sonido. Funciona en computadora, iOS y Android.
         </p>
       </div>
@@ -179,7 +179,8 @@ export default function VideoPresentacionPage() {
           onChange={(e) => { const f = e.target.files?.[0]; if (f) subir("video", f); }}
         />
         <p className="mt-4 text-[11px] text-slate-400 text-center">
-          MP4, WebM o MOV · máx. {MAX_VIDEO_MB} MB. Ideal formato vertical para que se vea bien en el celular.
+          MP4, WebM o MOV · máx. {MAX_VIDEO_MB} MB. Para máxima compatibilidad entre iPhone y Android,
+          recomendamos MP4 con video H.264 y audio AAC. Un MOV grabado en HEVC puede no reproducirse en todos los Android.
           {subiendo === "video" && " Subir un video pesado puede tardar unos segundos, no cierres la página."}
         </p>
       </div>
