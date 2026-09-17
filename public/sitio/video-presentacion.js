@@ -2,7 +2,7 @@
  * Video de presentación del home — inyector autónomo.
  *
  * Lee /api/sitio/video (mismo dominio) y, si hay un video cargado desde el ERP,
- * lo muestra debajo del encabezado y antes del contenido principal de la home.
+ * lo muestra en la portada: debajo del hero y arriba de la sección de categorías.
  *
  * Comportamiento pedido:
  *  - Autoplay en SILENCIO (único modo que permiten iOS/Android sin gesto).
@@ -95,15 +95,19 @@
     marco.appendChild(btn);
     section.appendChild(marco);
 
-    // La estructura actual tiene <header> seguido por #home-view. El video debe
-    // quedar entre ambos. Si el sitio productivo cambia de estructura, usamos
-    // #home-view como segundo ancla y solo como último recurso lo agregamos al body.
-    var header = document.querySelector("header");
+    // Ubicación: debajo del hero y ARRIBA de la sección de categorías. El ancla
+    // principal es #categorias (la sección "Categorías destacadas"); el video se
+    // inserta justo antes. Si el sitio productivo cambia de estructura, caemos a
+    // #home-view (después del hero) y, como último recurso, después del <header>.
+    var categorias = document.getElementById("categorias");
     var home = document.getElementById("home-view");
-    if (header && header.parentNode) {
-      header.parentNode.insertBefore(section, header.nextSibling);
+    var header = document.querySelector("header");
+    if (categorias && categorias.parentNode) {
+      categorias.parentNode.insertBefore(section, categorias);
     } else if (home && home.parentNode) {
-      home.parentNode.insertBefore(section, home);
+      home.parentNode.insertBefore(section, home.nextSibling);
+    } else if (header && header.parentNode) {
+      header.parentNode.insertBefore(section, header.nextSibling);
     } else {
       document.body.insertBefore(section, document.body.firstChild);
     }

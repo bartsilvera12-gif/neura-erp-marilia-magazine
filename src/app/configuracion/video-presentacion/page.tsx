@@ -110,7 +110,7 @@ export default function VideoPresentacionPage() {
       <div className="mb-6">
         <h1 className="text-2xl font-semibold text-slate-900">Video de presentación</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Se muestra debajo del encabezado de la portada. Se reproduce solo, en <strong>silencio</strong>,
+          Se muestra en la portada, arriba de la sección de categorías. Se reproduce solo, en <strong>silencio</strong>,
           y el visitante puede activar el sonido. Funciona en computadora, iOS y Android.
         </p>
       </div>
