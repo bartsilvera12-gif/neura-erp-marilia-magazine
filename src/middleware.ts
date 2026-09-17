@@ -55,7 +55,8 @@ export async function middleware(request: NextRequest) {
       pathname.startsWith("/uploads/") ||
       pathname.startsWith("/sitio/") ||
       pathname === "/support.js" ||
-      pathname === "/image-slot.js"
+      pathname === "/image-slot.js" ||
+      pathname === "/video-presentacion.js"
     ) {
       // Assets servidos desde public/sitio/. Si el path ya empieza con
       // /sitio/ lo dejamos pasar; sino lo prefijamos.

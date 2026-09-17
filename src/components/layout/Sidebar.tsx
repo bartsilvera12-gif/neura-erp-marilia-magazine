@@ -196,6 +196,13 @@ const MENU_STRUCTURE: MenuItem[] = [
     href: "/configuracion/marcas",
     icon: Sparkles,
   },
+  {
+    key: "sitio_video",
+    slug: "configuracion",
+    label: "Video de presentación",
+    href: "/configuracion/video-presentacion",
+    icon: Sparkles,
+  },
   // Shop the look e Instagram grid removidos: el sitio ya no tiene esas
   // secciones, quedaban como pantallas que no impactaban en ningún lado.
   // Items ocultos en ferreteria (no aplican / duplicados):

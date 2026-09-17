@@ -91,6 +91,12 @@ const nextConfig: NextConfig = {
           { key: "Cache-Control", value: "public, max-age=604800" },
         ],
       },
+      {
+        source: "/sitio/video-presentacion.js",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=604800" },
+        ],
+      },
     ];
   },
 };
