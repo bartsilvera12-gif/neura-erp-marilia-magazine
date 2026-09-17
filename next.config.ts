@@ -19,7 +19,15 @@ const nextConfig: NextConfig = {
     // Next solo bundlea esas 3 icons en vez del barrel completo de la libreria.
     // Aplica tambien a recharts (aunque ya hicimos dynamic import del chart).
     optimizePackageImports: ["lucide-react", "recharts"],
-  },
+
+    // Cuando la request pasa por el middleware (nuestro matcher cubre /api/*),
+    // Next bufferea el body con un limite que por defecto es 10MB. Las subidas
+    // grandes (video de presentacion, hasta 80MB) lo excedian y `formData()`
+    // fallaba con "Failed to parse body as FormData". Lo subimos a 100MB.
+    // NOTA: en Next 16.3+ esta opcion se renombro a `proxyClientMaxBodySize`;
+    // esta instancia corre 16.1.6, donde la clave es `middlewareClientMaxBodySize`.
+    middlewareClientMaxBodySize: 104857600, // 100 MB en bytes
+  } as NextConfig["experimental"],
 
   // TypeScript check ya se hace localmente con `tsc --noEmit` antes de cada
   // commit (verificado). En Coolify el "Running TypeScript" step del build
