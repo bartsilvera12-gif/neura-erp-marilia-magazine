@@ -2,7 +2,7 @@
  * Video de presentación del home — inyector autónomo.
  *
  * Lee /api/sitio/video (mismo dominio) y, si hay un video cargado desde el ERP,
- * lo muestra al inicio de la página, en un espacio destacado.
+ * lo muestra debajo del encabezado y antes del contenido principal de la home.
  *
  * Comportamiento pedido:
  *  - Autoplay en SILENCIO (único modo que permiten iOS/Android sin gesto).
@@ -33,15 +33,16 @@
   function montar(data) {
     var url = data && data.video_url;
     if (!url) return; // sin video cargado: la portada queda como estaba
+    if (document.getElementById("mm-video-presentacion")) return;
 
-    // Contenedor a todo el ancho, arriba de todo.
+    // Contenedor a todo el ancho, debajo del encabezado.
     var section = h("section", { id: "mm-video-presentacion", "aria-label": "Video de presentación de la tienda" },
       "position:relative;width:100%;background:#0b1020;overflow:hidden;");
 
     // Marco que fija una relación de aspecto para evitar saltos de layout
     // mientras carga. 16/9 en desktop; el video se ajusta con object-fit.
     var marco = h("div", null,
-      "position:relative;width:100%;max-height:82vh;aspect-ratio:16/9;background:#0b1020;");
+      "position:relative;width:100%;max-height:82vh;aspect-ratio:16/9;background:#0b1020;margin:0 auto;");
     // Fallback para navegadores viejos sin aspect-ratio.
     marco.style.minHeight = "220px";
 
@@ -59,7 +60,9 @@
     video.playsInline = true;
     if (data.poster_url) video.setAttribute("poster", data.poster_url);
 
-    var source = h("source", { src: url });
+    var sourceAttrs = { src: url };
+    if (data.mime) sourceAttrs.type = data.mime;
+    var source = h("source", sourceAttrs);
     video.appendChild(source);
 
     // Botón de sonido (arranca en "activar sonido" porque va muteado).
@@ -80,7 +83,10 @@
     }
     btn.addEventListener("click", function () {
       video.muted = !video.muted;
-      if (!video.muted) { var p = video.play(); if (p && p.catch) p.catch(function () {}); }
+      if (!video.muted) {
+        var p = video.play();
+        if (p && p.catch) p.catch(function () {});
+      }
       pintarBtn();
     });
     pintarBtn();
@@ -89,24 +95,32 @@
     marco.appendChild(btn);
     section.appendChild(marco);
 
-    // Insertar como primer elemento del body (arriba de todo).
-    var body = document.body;
-    if (body.firstChild) body.insertBefore(section, body.firstChild);
-    else body.appendChild(section);
+    // La estructura actual tiene <header> seguido por #home-view. El video debe
+    // quedar entre ambos. Si el sitio productivo cambia de estructura, usamos
+    // #home-view como segundo ancla y solo como último recurso lo agregamos al body.
+    var header = document.querySelector("header");
+    var home = document.getElementById("home-view");
+    if (header && header.parentNode) {
+      header.parentNode.insertBefore(section, header.nextSibling);
+    } else if (home && home.parentNode) {
+      home.parentNode.insertBefore(section, home);
+    } else {
+      document.body.insertBefore(section, document.body.firstChild);
+    }
 
     // Reintentar autoplay tras montar (algunos browsers lo bloquean si el
     // elemento aún no estaba en el DOM al crear).
     var play = video.play();
     if (play && play.catch) play.catch(function () { /* autoplay bloqueado: queda el poster + botón */ });
 
-    // Ajuste móvil: los verticales quedan enormes en 16/9; si el video es más
-    // alto que ancho, usamos object-fit:contain y limitamos alto para no tapar
-    // toda la pantalla en el celular.
+    // Ajuste para videos verticales: se centran y usan contain para evitar
+    // recortes. En desktop no crecen indefinidamente y en móvil respetan 78vh.
     video.addEventListener("loadedmetadata", function () {
       var vertical = video.videoHeight > video.videoWidth;
       if (vertical) {
         marco.style.aspectRatio = "9/16";
         marco.style.maxHeight = "78vh";
+        marco.style.maxWidth = "560px";
         video.style.objectFit = "contain";
         video.style.background = "#0b1020";
       }
@@ -114,7 +128,7 @@
   }
 
   function init() {
-    fetch(API, { headers: { accept: "application/json" } })
+    fetch(API, { headers: { accept: "application/json" }, cache: "no-store" })
       .then(function (r) { return r.ok ? r.json() : null; })
       .then(function (j) { if (j && j.success && j.data) montar(j.data); })
       .catch(function () { /* silencioso: no romper la portada */ });
