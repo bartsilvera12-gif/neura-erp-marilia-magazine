@@ -4,6 +4,23 @@ import { successResponse, errorResponse } from "@/lib/api/response";
 
 const VIDEO_SCHEMA = "mariliaerp";
 
+// El sitio publico de Marilia vive en OTRO dominio (hosting estatico), así que
+// consume este endpoint cross-origin. Es solo lectura de una URL publica, por
+// eso abrimos CORS a cualquier origen.
+const CORS_HEADERS = { "Access-Control-Allow-Origin": "*" } as const;
+
+export async function OPTIONS() {
+  return new NextResponse(null, {
+    status: 204,
+    headers: {
+      ...CORS_HEADERS,
+      "Access-Control-Allow-Methods": "GET, OPTIONS",
+      "Access-Control-Allow-Headers": "Accept, Content-Type",
+      "Access-Control-Max-Age": "86400",
+    },
+  });
+}
+
 /**
  * Endpoint PÚBLICO (sin auth) que el sitio consume para mostrar el video de
  * presentación en la portada.
@@ -42,11 +59,11 @@ export async function GET() {
     };
 
     return NextResponse.json(successResponse(payload), {
-      headers: { "Cache-Control": "public, max-age=60, s-maxage=60" },
+      headers: { "Cache-Control": "public, max-age=60, s-maxage=60", ...CORS_HEADERS },
     });
   } catch (err) {
     console.error("[/api/sitio/video GET]", err instanceof Error ? err.message : err);
     // Nunca romper la portada: si algo falla, el sitio simplemente no muestra video.
-    return NextResponse.json(errorResponse("No se pudo cargar el video."), { status: 500 });
+    return NextResponse.json(errorResponse("No se pudo cargar el video."), { status: 500, headers: CORS_HEADERS });
   }
 }
