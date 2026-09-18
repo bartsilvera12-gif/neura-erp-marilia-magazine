@@ -38,26 +38,35 @@ export const ALLOWED_POSTER_EXT: Record<string, string> = {
   "image/webp": "webp",
 };
 
-// 80 MB: cubre videos verticales de varios minutos sin recomprimir. El bucket
-// rechaza lo que exceda; el endpoint valida antes con un mensaje amigable.
-export const MAX_VIDEO_BYTES = 80 * 1024 * 1024;
+// 250 MB: la clienta sube el video tal cual (recomendado comprimir antes). El
+// bucket rechaza lo que exceda; el endpoint valida antes con un mensaje amigable.
+// OJO: si se sube este tope, hay que acompañarlo en next.config.ts
+// (experimental.middlewareClientMaxBodySize) y en la config de Supabase/proxy.
+export const MAX_VIDEO_BYTES = 250 * 1024 * 1024;
 export const MAX_POSTER_BYTES = 5 * 1024 * 1024;
 
 let bucketEnsured = false;
 
 export async function ensureSitioVideosBucket(supabase: AppSupabaseClient): Promise<void> {
   if (bucketEnsured) return;
-  try {
-    const { data } = await supabase.storage.getBucket(SITIO_VIDEOS_BUCKET);
-    if (data) { bucketEnsured = true; return; }
-  } catch {
-    // fallthrough — intentar crear
-  }
-  const { error } = await supabase.storage.createBucket(SITIO_VIDEOS_BUCKET, {
+  const opts = {
     public: true,
     fileSizeLimit: MAX_VIDEO_BYTES,
     allowedMimeTypes: [...ALLOWED_VIDEO_MIME, ...ALLOWED_POSTER_MIME],
-  });
+  };
+  try {
+    const { data } = await supabase.storage.getBucket(SITIO_VIDEOS_BUCKET);
+    if (data) {
+      // El bucket ya existe: hay que ACTUALIZAR su fileSizeLimit, porque
+      // createBucket no se vuelve a llamar y el bucket conserva el límite viejo.
+      await supabase.storage.updateBucket(SITIO_VIDEOS_BUCKET, opts);
+      bucketEnsured = true;
+      return;
+    }
+  } catch {
+    // fallthrough — intentar crear
+  }
+  const { error } = await supabase.storage.createBucket(SITIO_VIDEOS_BUCKET, opts);
   if (error && !/already exists|duplicate/i.test(error.message)) {
     throw new Error("No se pudo crear el bucket de videos: " + error.message);
   }

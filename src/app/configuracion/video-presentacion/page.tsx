@@ -20,7 +20,8 @@ interface VideoState {
   updated_at?: string | null;
 }
 
-const MAX_VIDEO_MB = 80;
+// Debe coincidir con MAX_VIDEO_BYTES en src/lib/sitio-admin/video-storage.ts
+const MAX_VIDEO_MB = 250;
 const MAX_POSTER_MB = 5;
 
 export default function VideoPresentacionPage() {

@@ -22,11 +22,14 @@ const nextConfig: NextConfig = {
 
     // Cuando la request pasa por el middleware (nuestro matcher cubre /api/*),
     // Next bufferea el body con un limite que por defecto es 10MB. Las subidas
-    // grandes (video de presentacion, hasta 80MB) lo excedian y `formData()`
-    // fallaba con "Failed to parse body as FormData". Lo subimos a 100MB.
+    // grandes (video de presentacion) lo excedian y `formData()` fallaba con
+    // "Failed to parse body as FormData". Debe ser >= MAX_VIDEO_BYTES (250MB)
+    // + overhead del multipart; lo dejamos en 270MB.
     // NOTA: en Next 16.3+ esta opcion se renombro a `proxyClientMaxBodySize`;
     // esta instancia corre 16.1.6, donde la clave es `middlewareClientMaxBodySize`.
-    middlewareClientMaxBodySize: 104857600, // 100 MB en bytes
+    // OJO: el proxy de Coolify (Traefik) tambien puede limitar el body; si una
+    // subida grande falla con 413, hay que subir el limite ahi tambien.
+    middlewareClientMaxBodySize: 283115520, // 270 MB en bytes
   } as NextConfig["experimental"],
 
   // TypeScript check ya se hace localmente con `tsc --noEmit` antes de cada
