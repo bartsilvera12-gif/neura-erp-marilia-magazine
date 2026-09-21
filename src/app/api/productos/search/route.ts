@@ -3,7 +3,7 @@ import { getTenantSupabaseFromAuth } from "@/lib/supabase/tenant-api";
 import { successResponse, errorResponse } from "@/lib/api/response";
 import { API_ERRORS } from "@/lib/api/errors";
 import { signProductoImagen } from "@/lib/inventario/imagen-storage";
-import { applyTokenSearch } from "@/lib/productos/token-search";
+import { applyTokenSearch, normalizeText } from "@/lib/productos/token-search";
 
 interface ProductoSearchHit {
   id: string;
@@ -71,14 +71,36 @@ export async function GET(request: NextRequest) {
       .eq("es_vendible", true);
 
     if (q.length > 0) {
-      // Cada palabra debe aparecer en alguna columna (AND entre tokens, OR entre
-      // columnas) → matching orden-independiente. Se incluye color_nombre y
-      // talla_nombre para poder encontrar por color/talle aunque no estén en el
-      // nombre. codigo_proveedor es indispensable: es lo que ve el operador en la
-      // columna "Código" del inventario, ya que el SKU pasó a ser interno.
-      query = applyTokenSearch(query, q, [
-        "nombre", "descripcion", "sku", "codigo_barras", "codigo_proveedor", "color_nombre", "talla_nombre",
-      ]);
+      // Para poder buscar por CATEGORÍA (que vive en otra tabla), traemos las
+      // categorías del tenant (son pocas) y, por cada token, resolvemos las que
+      // matchean por nombre. Se compara normalizado (sin acentos) porque ILIKE
+      // no ignora acentos. El id de categoría se suma como condición OR del token.
+      const { data: cats } = await supabase
+        .from("categorias_productos")
+        .select("id, nombre")
+        .eq("empresa_id", empresaId);
+      const catsNorm = ((cats ?? []) as Array<{ id: unknown; nombre: unknown }>).map((c) => ({
+        id: String(c.id),
+        norm: normalizeText(String(c.nombre ?? "")),
+      }));
+      const catIdsForToken = (tokenCrudo: string): string[] => {
+        const t = normalizeText(tokenCrudo);
+        if (!t) return [];
+        const ids = catsNorm.filter((c) => c.norm.includes(t)).map((c) => c.id);
+        return ids.length ? [`categoria_principal_id.in.(${ids.join(",")})`] : [];
+      };
+
+      // Cada palabra debe aparecer en alguna columna o en la categoría (AND entre
+      // tokens, OR entre columnas) → matching orden-independiente. Se incluye
+      // color_nombre y talla_nombre para encontrar por color/talle aunque no estén
+      // en el nombre. codigo_proveedor es indispensable: es lo que ve el operador
+      // en la columna "Código" del inventario, ya que el SKU pasó a ser interno.
+      query = applyTokenSearch(
+        query,
+        q,
+        ["nombre", "descripcion", "sku", "codigo_barras", "codigo_proveedor", "color_nombre", "talla_nombre"],
+        catIdsForToken
+      );
     }
 
     query = query.order("nombre").limit(limit);

@@ -67,12 +67,17 @@ export function escapeIlikeToken(t: string): string {
  * filtros de nivel superior se combinan con AND, el resultado es
  * "cada token aparece en alguna columna" (orden-independiente).
  *
+ * `condicionesExtraPorToken` permite sumar condiciones OR adicionales por
+ * token (recibe el token CRUDO, sin escapar), p. ej. para buscar por una
+ * columna relacionada resuelta aparte: `categoria_principal_id.in.(id1,id2)`.
+ *
  * `query` es el builder de supabase-js; se devuelve el builder encadenado.
  */
 export function applyTokenSearch<Q extends { or: (f: string) => Q }>(
   query: Q,
   q: string,
-  columnas: string[]
+  columnas: string[],
+  condicionesExtraPorToken?: (tokenCrudo: string) => string[]
 ): Q {
   const tokens = splitTokens(q);
   let out = query;
@@ -80,7 +85,13 @@ export function applyTokenSearch<Q extends { or: (f: string) => Q }>(
     const tok = escapeIlikeToken(tokRaw);
     if (!tok) continue;
     const pat = `%${tok}%`;
-    out = out.or(columnas.map((c) => `${c}.ilike.${pat}`).join(","));
+    const condiciones = columnas.map((c) => `${c}.ilike.${pat}`);
+    if (condicionesExtraPorToken) {
+      for (const extra of condicionesExtraPorToken(tokRaw)) {
+        if (extra) condiciones.push(extra);
+      }
+    }
+    out = out.or(condiciones.join(","));
   }
   return out;
 }
