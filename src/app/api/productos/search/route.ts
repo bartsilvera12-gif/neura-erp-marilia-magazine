@@ -71,11 +71,14 @@ export async function GET(request: NextRequest) {
       .eq("es_vendible", true);
 
     if (q.length > 0) {
-      // Cada palabra debe aparecer en nombre/sku/codigo_barras/codigo_proveedor
-      // (AND entre tokens, OR entre columnas) → matching orden-independiente.
-      // codigo_proveedor es indispensable: es lo que ve el operador en la
+      // Cada palabra debe aparecer en alguna columna (AND entre tokens, OR entre
+      // columnas) → matching orden-independiente. Se incluye color_nombre y
+      // talla_nombre para poder encontrar por color/talle aunque no estén en el
+      // nombre. codigo_proveedor es indispensable: es lo que ve el operador en la
       // columna "Código" del inventario, ya que el SKU pasó a ser interno.
-      query = applyTokenSearch(query, q, ["nombre", "sku", "codigo_barras", "codigo_proveedor"]);
+      query = applyTokenSearch(query, q, [
+        "nombre", "descripcion", "sku", "codigo_barras", "codigo_proveedor", "color_nombre", "talla_nombre",
+      ]);
     }
 
     query = query.order("nombre").limit(limit);

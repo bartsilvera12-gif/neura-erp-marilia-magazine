@@ -21,9 +21,15 @@ export function normalizeText(s: string): string {
  * Divide la consulta en tokens (palabras) no vacíos. Máximo 8 tokens para
  * acotar el costo de la query. No quita acentos: sirve tanto para cliente
  * (que normaliza aparte) como de base para el server.
+ *
+ * Separa por CUALQUIER caracter que no sea letra/número (espacios, guiones
+ * `-` y `–`, `/`, comas, etc.). Así la puntuación nunca queda como un token
+ * propio: antes, pegar un nombre como "Camiseta Pima ATIQ – Creme" generaba
+ * un token "–" que no aparecía en ninguna columna y, al exigirse TODOS los
+ * tokens (AND), devolvía "Sin resultados".
  */
 export function splitTokens(q: string): string[] {
-  return q.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  return q.split(/[^\p{L}\p{N}]+/u).filter(Boolean).slice(0, 8);
 }
 
 /**
