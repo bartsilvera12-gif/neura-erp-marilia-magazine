@@ -233,6 +233,9 @@ export default function NuevaVentaPage() {
   // ── Cobro (solo CONTADO, no se persiste — solo ayuda al cajero) ───────────
   const [montoRecibido, setMontoRecibido] = useState("");
   const [metodoPago, setMetodoPago] = useState<MetodoPago>("efectivo");
+  // Descuento porcentual sobre el total de la venta (Caja). String para permitir
+  // el campo vacío; se parsea a número al calcular.
+  const [descuentoPct, setDescuentoPct] = useState("");
 
   // ── Detalle de cobro (conciliación bancaria) ──────────────────────────────
   const [entidades, setEntidades] = useState<{ id: string; codigo: string | null; nombre: string; tipo: string | null }[]>([]);
@@ -628,6 +631,13 @@ export default function NuevaVentaPage() {
   const totalIva      = items.reduce((s, i) => s + i.monto_iva, 0);
   const totalGeneral  = items.reduce((s, i) => s + i.total_linea, 0);
 
+  // ── Descuento porcentual sobre el total ───────────────────────────────────
+  // Sin límite superior de %; se acota a [0, 100] para no dejar el total negativo.
+  const descuentoPctNum = Math.max(0, Math.min(100, parseFloat(descuentoPct) || 0));
+  const descuentoMonto = descuentoPctNum > 0 ? Math.round((totalGeneral * descuentoPctNum) / 100) : 0;
+  // Total FINAL a cobrar (ya con el descuento aplicado).
+  const totalConDescuento = Math.max(0, totalGeneral - descuentoMonto);
+
   // Condición de venta: si es Crédito, exigir plazo de al menos 1 día y un cliente.
   const plazoDiasNum = parseInt(plazoDias) || 0;
   const creditoValido = tipoVenta === "CONTADO" || (plazoDiasNum >= 1 && !!clienteId);
@@ -654,9 +664,9 @@ export default function NuevaVentaPage() {
 
   // ── Saldo a favor aplicado a esta venta ───────────────────────────────────
   /** No puede superar ni el saldo del cliente ni el total de la venta. */
-  const saldoAplicado = Math.max(0, Math.min(usarSaldo, saldoFavor, totalGeneral));
+  const saldoAplicado = Math.max(0, Math.min(usarSaldo, saldoFavor, totalConDescuento));
   /** Lo que falta cobrar por los medios normales (efectivo, tarjeta, etc.). */
-  const restaCobrar = Math.max(0, totalGeneral - saldoAplicado);
+  const restaCobrar = Math.max(0, totalConDescuento - saldoAplicado);
 
   // Al abrir el modal de cobro, precargar el monto con lo que resta cobrar.
   useEffect(() => {
@@ -940,7 +950,9 @@ export default function NuevaVentaPage() {
           tipo_cambio:  tipoCambioNum,
           subtotal:     totalSubtotal,
           monto_iva:    totalIva,
-          total:        totalGeneral,
+          total:        totalConDescuento,
+          descuento_porcentaje: descuentoPctNum,
+          descuento_monto:      descuentoMonto,
           tipo_venta:   tipoVenta,
           plazo_dias:   tipoVenta === "CREDITO" ? plazoDiasNum : undefined,
           metodo_pago:  metodoPago,
@@ -1008,6 +1020,7 @@ export default function NuevaVentaPage() {
       if (resultado.facturaWarning) {
         setErrorVenta(`${resultado.facturaWarning} La venta ${resultado.venta.numero_control} quedó registrada.`);
         setItems([]);
+        setDescuentoPct("");
         return;
       }
 
@@ -1513,9 +1526,30 @@ export default function NuevaVentaPage() {
                         {totalIva > 0 ? formatGs(totalIva) : "—"}
                       </span>
                     </div>
+                    {/* Descuento (%) sobre el total. El cajero ingresa el % y el
+                        sistema calcula el monto y el total final. */}
+                    <div className="flex items-center justify-between text-sm text-gray-600 pt-1">
+                      <span>Descuento (%)</span>
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number" min={0} step="any" inputMode="decimal"
+                          value={descuentoPct}
+                          onChange={(e) => setDescuentoPct(e.target.value)}
+                          placeholder="0"
+                          className="h-8 w-20 rounded-lg border border-gray-300 bg-white px-2 text-right text-sm font-medium text-slate-800 outline-none focus:ring-2 focus:ring-[#0EA5E9]"
+                        />
+                        <span className="text-gray-400">%</span>
+                      </div>
+                    </div>
+                    {descuentoMonto > 0 && (
+                      <div className="flex justify-between text-sm text-rose-600">
+                        <span>Descuento{descuentoPctNum > 0 ? ` (${descuentoPctNum}%)` : ""}</span>
+                        <span className="tabular-nums font-medium">− {formatGs(descuentoMonto)}</span>
+                      </div>
+                    )}
                     <div className="flex justify-between text-base font-bold text-gray-900 pt-2 border-t border-gray-200">
                       <span>TOTAL</span>
-                      <span className="tabular-nums">{formatGs(totalGeneral)}</span>
+                      <span className="tabular-nums">{formatGs(totalConDescuento)}</span>
                     </div>
                   </div>
 
@@ -1535,16 +1569,16 @@ export default function NuevaVentaPage() {
                       </div>
                       <div className="mt-2.5 flex items-center gap-2">
                         <input
-                          type="number" min={0} max={Math.min(saldoFavor, totalGeneral)} step="any"
+                          type="number" min={0} max={Math.min(saldoFavor, totalConDescuento)} step="any"
                           value={usarSaldo || ""}
-                          onChange={(e) => setUsarSaldo(Math.max(0, Math.min(Math.min(saldoFavor, totalGeneral), Number(e.target.value) || 0)))}
+                          onChange={(e) => setUsarSaldo(Math.max(0, Math.min(Math.min(saldoFavor, totalConDescuento), Number(e.target.value) || 0)))}
                           placeholder="0"
                           className="h-9 w-32 rounded-lg border border-emerald-300 bg-white px-2 text-center text-sm font-bold text-slate-800 outline-none focus:ring-2 focus:ring-emerald-300"
                         />
                         <button type="button"
-                          onClick={() => setUsarSaldo(Math.min(saldoFavor, totalGeneral))}
+                          onClick={() => setUsarSaldo(Math.min(saldoFavor, totalConDescuento))}
                           className="rounded-lg border border-emerald-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100">
-                          Usar {formatGs(Math.min(saldoFavor, totalGeneral))}
+                          Usar {formatGs(Math.min(saldoFavor, totalConDescuento))}
                         </button>
                         {usarSaldo > 0 && (
                           <button type="button" onClick={() => setUsarSaldo(0)}

@@ -86,7 +86,10 @@ export interface CreateVentaPgParams {
   items: CreateVentaItemInput[];
   subtotalDeclarado: number;
   montoIvaDeclarado: number;
+  /** Total FINAL declarado por el cliente (ya con el descuento aplicado). */
   totalDeclarado: number;
+  /** Descuento porcentual sobre el total (0–100). 0 = sin descuento. */
+  descuentoPorcentaje?: number;
   pedidoCocina?: CreateVentaPedidoCocinaInput | null;
   /** Si true, autoriza vender aunque falte stock de productos o insumos (stock puede quedar negativo). */
   permitirSinStock?: boolean;
@@ -148,6 +151,12 @@ export async function createVentaTransaccionalPg(
   facturaId: string | null;
   numeroFactura: string | null;
   facturaWarning: string | null;
+  subtotal: number;
+  montoIva: number;
+  /** Total ya con el descuento aplicado (lo efectivamente cobrado). */
+  total: number;
+  descuentoPorcentaje: number;
+  descuentoMonto: number;
 }> {
   const items = params.items;
   if (!items.length) {
@@ -155,10 +164,18 @@ export async function createVentaTransaccionalPg(
   }
 
   const calc = recalcTotals(items);
+  // Descuento porcentual sobre el total (Caja). El total FINAL cobrado es el
+  // bruto menos el descuento; subtotal/monto_iva se conservan como bruto para
+  // el desglose. El total declarado por el cliente ya viene con descuento.
+  const descuentoPct = Math.max(0, Math.min(100, params.descuentoPorcentaje ?? 0));
+  const descuentoMonto = descuentoPct > 0 ? Math.round((calc.total * descuentoPct) / 100) : 0;
+  const totalFinal = calc.total - descuentoMonto;
+  // Factor para prorratear el descuento en las líneas de la factura (SIFEN).
+  const factorDescuento = calc.total > 0 ? totalFinal / calc.total : 1;
   if (
     Math.abs(calc.subtotal - params.subtotalDeclarado) > TOL ||
     Math.abs(calc.montoIva - params.montoIvaDeclarado) > TOL ||
-    Math.abs(calc.total - params.totalDeclarado) > TOL
+    Math.abs(totalFinal - params.totalDeclarado) > TOL
   ) {
     throw new Error("Los totales no coinciden con los ítems; revisá el carrito.");
   }
@@ -559,7 +576,9 @@ export async function createVentaTransaccionalPg(
       tipo_cambio: params.tipoCambio,
       subtotal: calc.subtotal,
       monto_iva: calc.montoIva,
-      total: calc.total,
+      total: totalFinal,
+      descuento_porcentaje: descuentoPct,
+      descuento_monto: descuentoMonto,
       estado: "completada",
       tipo_venta: params.tipoVenta,
       plazo_dias: params.plazoDias,
@@ -799,8 +818,8 @@ export async function createVentaTransaccionalPg(
           fecha_emision: fechaEmision,
           fecha_vencimiento: fechaVencimiento,
           moneda: params.moneda === "USD" ? "USD" : "PYG",
-          total: calc.total,
-          saldo: calc.total,
+          total: totalFinal,
+          saldo: totalFinal,
           estado: "pendiente",
         })
         .select("id")
@@ -880,8 +899,8 @@ export async function createVentaTransaccionalPg(
           numero_factura: numeroFactura,
           fecha: fechaIso.slice(0, 10),
           fecha_vencimiento: fechaIso.slice(0, 10),
-          monto: calc.total,
-          saldo: params.tipoVenta === "CREDITO" ? calc.total : 0,
+          monto: totalFinal,
+          saldo: params.tipoVenta === "CREDITO" ? totalFinal : 0,
           estado: params.tipoVenta === "CREDITO" ? "Pendiente" : "Pagado",
           tipo: params.tipoVenta === "CREDITO" ? "credito" : "contado",
           moneda: params.moneda,
@@ -898,17 +917,37 @@ export async function createVentaTransaccionalPg(
       // 10d) Líneas de la factura. El tipo_iva sale tal cual de la línea de la
       //      venta (ya viene como 'EXENTA' | '5%' | '10%'), que es el desglose
       //      que después consume SIFEN.
-      const facItemsRows = items.map((line) => ({
-        empresa_id: params.empresaId,
-        factura_id: facturaId,
-        descripcion: line.producto_nombre,
-        cantidad: line.cantidad,
-        precio_unitario: line.precio_venta,
-        subtotal: line.subtotal,
-        iva: line.monto_iva,
-        tipo_iva: line.tipo_iva,
-        total: line.total_linea,
-      }));
+      // Si hay descuento, se prorratea en cada línea para que la factura
+      // (documento fiscal) coincida con el total efectivamente cobrado. Con
+      // factorDescuento=1 (sin descuento) los montos quedan idénticos al bruto.
+      const facItemsRows = items.map((line) => {
+        const subtotal = Math.round(line.subtotal * factorDescuento);
+        const total = Math.round(line.total_linea * factorDescuento);
+        const iva = total - subtotal;
+        const precioUnit = line.cantidad > 0 ? Math.round(total / line.cantidad) : line.precio_venta;
+        return {
+          empresa_id: params.empresaId,
+          factura_id: facturaId,
+          descripcion: line.producto_nombre,
+          cantidad: line.cantidad,
+          precio_unitario: precioUnit,
+          subtotal,
+          iva,
+          tipo_iva: line.tipo_iva,
+          total,
+        };
+      });
+      // Reconciliar el redondeo del prorrateo: la suma de totales de línea debe
+      // ser EXACTAMENTE el total con descuento (SIFEN exige coherencia).
+      if (descuentoMonto > 0 && facItemsRows.length > 0) {
+        const sumTotal = facItemsRows.reduce((a, r) => a + r.total, 0);
+        const diff = totalFinal - sumTotal;
+        if (diff !== 0) {
+          const last = facItemsRows[facItemsRows.length - 1];
+          last.total += diff;
+          last.iva = last.total - last.subtotal;
+        }
+      }
       const insFacItems = await sb.from("factura_items").insert(facItemsRows);
       if (insFacItems.error) throw new Error(insFacItems.error.message);
 
@@ -942,5 +981,10 @@ export async function createVentaTransaccionalPg(
     facturaId,
     numeroFactura,
     facturaWarning,
+    subtotal: calc.subtotal,
+    montoIva: calc.montoIva,
+    total: totalFinal,
+    descuentoPorcentaje: descuentoPct,
+    descuentoMonto,
   };
 }

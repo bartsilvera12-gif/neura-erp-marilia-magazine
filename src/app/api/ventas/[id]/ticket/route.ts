@@ -131,6 +131,8 @@ interface VentaRow {
   subtotal: number | string;
   monto_iva: number | string;
   total: number | string;
+  descuento_porcentaje: number | string | null;
+  descuento_monto: number | string | null;
   observaciones: string | null;
   metodo_pago: string | null;
   cliente_id: string | null;
@@ -225,6 +227,8 @@ function renderCopia(opts: {
   const subtotal = Number(venta.subtotal);
   const ivaTotal = Number(venta.monto_iva);
   const total = Number(venta.total);
+  const descuentoMonto = Number(venta.descuento_monto) || 0;
+  const descuentoPct = Number(venta.descuento_porcentaje) || 0;
 
   const datosPedido: string[] = [];
   if (modalidad) {
@@ -246,6 +250,7 @@ function renderCopia(opts: {
          <tbody>
            <tr><td class="lbl">Subtotal</td><td class="val">${formatGs(subtotal)}</td></tr>
            ${ivaTotal > 0 ? `<tr><td class="lbl">IVA</td><td class="val">${formatGs(ivaTotal)}</td></tr>` : ""}
+           ${descuentoMonto > 0 ? `<tr><td class="lbl">Descuento${descuentoPct > 0 ? ` (${descuentoPct}%)` : ""}</td><td class="val">- ${formatGs(descuentoMonto)}</td></tr>` : ""}
            <tr class="total-row"><td class="lbl">TOTAL</td><td class="val">${formatGs(total)}</td></tr>
            <tr><td class="lbl">Pago</td><td class="val">${metodoPagoLabel(venta.metodo_pago)}</td></tr>
          </tbody>
@@ -423,7 +428,7 @@ export async function GET(request: NextRequest, ctxParams: { params: Promise<{ i
   // Venta
   const vQ = await ctx.supabase
     .from("ventas")
-    .select("id, numero_control, fecha, subtotal, monto_iva, total, observaciones, metodo_pago, cliente_id, genera_nota_remision, nota_remision_numero")
+    .select("id, numero_control, fecha, subtotal, monto_iva, total, descuento_porcentaje, descuento_monto, observaciones, metodo_pago, cliente_id, genera_nota_remision, nota_remision_numero")
     .eq("id", id)
     .eq("empresa_id", empresaId)
     .maybeSingle();

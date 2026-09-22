@@ -58,9 +58,14 @@ export interface Venta {
   moneda:      MonedaVenta;
   tipo_cambio: number;       // 1 si moneda === "GS"
 
-  subtotal:  number;         // Σ subtotal de ítems
-  monto_iva: number;         // Σ monto_iva de ítems
-  total:     number;         // Σ total_linea de ítems
+  subtotal:  number;         // Σ subtotal de ítems (bruto, sin descuento)
+  monto_iva: number;         // Σ monto_iva de ítems (bruto)
+  total:     number;         // total FINAL cobrado (bruto − descuento)
+
+  /** Descuento porcentual aplicado sobre el total (0 si no hubo). */
+  descuento_porcentaje?: number;
+  /** Monto del descuento aplicado (0 si no hubo). */
+  descuento_monto?: number;
 
   tipo_venta: TipoVenta;
   plazo_dias?: number;       // solo si tipo_venta === "CREDITO"

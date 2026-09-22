@@ -68,6 +68,8 @@ function toVentaResponse(
     subtotal: number;
     monto_iva: number;
     total: number;
+    descuento_porcentaje?: number;
+    descuento_monto?: number;
     genera_nota_remision?: boolean;
     nota_remision_numero?: string | null;
   }
@@ -94,6 +96,8 @@ function toVentaResponse(
     subtotal: meta.subtotal,
     monto_iva: meta.monto_iva,
     total: meta.total,
+    descuento_porcentaje: meta.descuento_porcentaje ?? 0,
+    descuento_monto: meta.descuento_monto ?? 0,
     tipo_venta: meta.tipo_venta,
     plazo_dias: meta.plazo_dias,
     metodo_pago: meta.metodo_pago,
@@ -254,6 +258,10 @@ export async function POST(request: NextRequest) {
     const subtotalDeclarado = Number(o.subtotal);
     const montoIvaDeclarado = Number(o.monto_iva);
     const totalDeclarado = Number(o.total);
+    // Descuento porcentual sobre el total (Caja). El total declarado ya viene con
+    // el descuento aplicado; el servidor recalcula el monto para no confiar en el
+    // cálculo del cliente. Sin límite superior de %.
+    const descuentoPorcentaje = Math.max(0, Math.min(100, Number(o.descuento_porcentaje) || 0));
 
     if ([subtotalDeclarado, montoIvaDeclarado, totalDeclarado].some((n) => Number.isNaN(n))) {
       return NextResponse.json(errorResponse("Totales inválidos."), { status: 400 });
@@ -321,6 +329,10 @@ export async function POST(request: NextRequest) {
       facturaId,
       numeroFactura,
       facturaWarning,
+      subtotal: subtotalVenta,
+      montoIva: montoIvaVenta,
+      total: totalFinalVenta,
+      descuentoMonto,
     } = await createVentaTransaccionalPg({
       schema,
       empresaId: auth.empresa_id,
@@ -335,6 +347,7 @@ export async function POST(request: NextRequest) {
       subtotalDeclarado,
       montoIvaDeclarado,
       totalDeclarado,
+      descuentoPorcentaje,
       pedidoCocina,
       permitirSinStock,
       generaNotaRemision: o.genera_nota_remision === true,
@@ -481,15 +494,8 @@ export async function POST(request: NextRequest) {
       console.error("[ventas/create] pago_detalle best-effort fallo (venta OK):", e instanceof Error ? e.message : e);
     }
 
-    let sub = 0;
-    let iv = 0;
-    let tot = 0;
-    for (const it of items) {
-      sub += it.subtotal;
-      iv += it.monto_iva;
-      tot += it.total_linea;
-    }
-
+    // Totales autoritativos del servidor: subtotal/monto_iva son el bruto y
+    // total es el FINAL (ya con el descuento aplicado).
     const venta = toVentaResponse(items, {
       id: ventaId,
       numero_control: numeroControl,
@@ -499,9 +505,11 @@ export async function POST(request: NextRequest) {
       tipo_venta: tipoVenta,
       plazo_dias: tipoVenta === "CREDITO" ? plazoDias ?? undefined : undefined,
       metodo_pago: metodoPago,
-      subtotal: sub,
-      monto_iva: iv,
-      total: tot,
+      subtotal: subtotalVenta,
+      monto_iva: montoIvaVenta,
+      total: totalFinalVenta,
+      descuento_porcentaje: descuentoPorcentaje,
+      descuento_monto: descuentoMonto,
       genera_nota_remision: !!notaRemisionNumero,
       nota_remision_numero: notaRemisionNumero,
     });
