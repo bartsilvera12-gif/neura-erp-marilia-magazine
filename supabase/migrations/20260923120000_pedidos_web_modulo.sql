@@ -161,11 +161,21 @@ begin
 end $function$;
 
 -- ── Grants ──────────────────────────────────────────────────────────────────
--- La tienda online (anon) inserta pedidos y lee su estado; el ERP
--- (authenticated/service_role) los administra. service_role igual bypassa RLS.
-GRANT SELECT, INSERT, UPDATE, DELETE ON mariliaerp.web_pedidos TO authenticated, service_role, anon;
-GRANT SELECT, INSERT, UPDATE, DELETE ON mariliaerp.web_pedido_items TO authenticated, service_role, anon;
-GRANT SELECT ON mariliaerp.v_web_pedidos TO authenticated, service_role, anon;
-GRANT EXECUTE ON FUNCTION mariliaerp.web_marcar_envio(uuid, text, text) TO authenticated, service_role, anon;
+-- Solo el ERP (authenticated) y el backend de pagos (service_role) escriben/leen.
+-- `anon` (clave PÚBLICA de la tienda) NO debe tener acceso: si pudiera escribir,
+-- cualquiera podría marcar un pedido "pagado" sin pagar; si pudiera leer,
+-- expondría datos personales de los compradores. El backend de pagos usa la
+-- SERVICE_ROLE_KEY (server-side), no la anon.
+GRANT SELECT, INSERT, UPDATE, DELETE ON mariliaerp.web_pedidos TO authenticated, service_role;
+GRANT SELECT, INSERT, UPDATE, DELETE ON mariliaerp.web_pedido_items TO authenticated, service_role;
+GRANT SELECT ON mariliaerp.v_web_pedidos TO authenticated, service_role;
+GRANT EXECUTE ON FUNCTION mariliaerp.web_marcar_envio(uuid, text, text) TO authenticated, service_role;
+
+-- Revoca cualquier acceso de anon (el schema tiene default privileges que se lo
+-- otorgan al crear la tabla; hay que quitarlo explícito).
+REVOKE ALL ON mariliaerp.web_pedidos FROM anon;
+REVOKE ALL ON mariliaerp.web_pedido_items FROM anon;
+REVOKE ALL ON mariliaerp.v_web_pedidos FROM anon;
+REVOKE EXECUTE ON FUNCTION mariliaerp.web_marcar_envio(uuid, text, text) FROM anon;
 
 NOTIFY pgrst, 'reload schema';
