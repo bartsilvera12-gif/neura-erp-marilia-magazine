@@ -34,6 +34,7 @@ import {
   BarChart3,
   Wallet,
   Banknote,
+  Globe,
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import { fetchWithSupabaseSession } from "@/lib/api/fetch-with-supabase-session";
@@ -152,6 +153,9 @@ const MENU_STRUCTURE: MenuItem[] = [
   // conciliacion de transferencias y tarjetas en cobros/ventas. Era submenu
   // de Configuracion; ahora modulo standalone para mejor accesibilidad.
   { key: "entidades_bancarias", slug: "ventas", label: "Entidades bancarias", href: "/configuracion/entidades-bancarias", icon: Building2 },
+  // Pedidos web: lo que se vendió en la tienda online y hay que despachar
+  // (tablero de entregas: para preparar → en camino → entregado).
+  { key: "pedidos_web", slug: "ventas", label: "Pedidos web", href: "/pedidos-web", icon: Globe },
   { key: "reportes", slug: "reportes", label: "Reportes", href: "/reportes", icon: BarChart3 },
   // Pagos oculto en instancia En lo de Mari (no usa este módulo).
   // Comisiones y Notas de credito ocultos por ahora:
@@ -234,7 +238,7 @@ const MENU_STRUCTURE: MenuItem[] = [
 const MENU_FAMILIES: { id: string; titulo: string; keys: string[] }[] = [
   { id: "inicio", titulo: "Inicio", keys: ["dashboard"] },
   { id: "comercial", titulo: "Comercial", keys: ["clientes", "crm", "gestion-clientes", "ventas", "pedidos", "presupuestos", "comisiones", "planes", "ofertas_home"] },
-  { id: "finanzas", titulo: "Finanzas", keys: ["cobros", "gastos", "otros_ingresos", "entidades_bancarias", "notas_credito", "reportes"] },
+  { id: "finanzas", titulo: "Finanzas", keys: ["cobros", "gastos", "otros_ingresos", "entidades_bancarias", "pedidos_web", "notas_credito", "reportes"] },
   { id: "operaciones", titulo: "Operaciones", keys: ["inventario", "compras", "recetas", "proyectos"] },
   { id: "omnicanal", titulo: "Omnicanal", keys: ["conversaciones", "conversaciones-finalizadas", "historial-omnicanal", "monitoreo", "campanas"] },
   { id: "marketing", titulo: "Marketing y Automatización", keys: ["marketing", "marketing_ops", "sorteos"] },
