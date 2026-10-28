@@ -4,6 +4,7 @@
  */
 import { splitRucParaXml } from "./sifen-cdc";
 import {
+  assertCoherenciaTiOpeNaturaleza,
   assertCoherenciaTiOpePais,
   descripcionTipoDocRecepXml,
   normalizarTipoDocReceptorSifen,
@@ -167,6 +168,7 @@ export function validateReceptorExplicitManual(
     }
     try {
       assertCoherenciaTiOpePais(tiOpe, "PRY");
+      assertCoherenciaTiOpeNaturaleza(1, tiOpe);
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
@@ -212,6 +214,7 @@ export function validateReceptorExplicitManual(
     }
     try {
       assertCoherenciaTiOpePais(tiOpe, "PRY");
+      assertCoherenciaTiOpeNaturaleza(2, tiOpe);
     } catch (e) {
       return { ok: false, error: e instanceof Error ? e.message : String(e) };
     }
@@ -261,6 +264,7 @@ export function validateReceptorExplicitManual(
 
   try {
     assertCoherenciaTiOpePais(tiOpe, codigoPais);
+    assertCoherenciaTiOpeNaturaleza(2, tiOpe);
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : String(e) };
   }

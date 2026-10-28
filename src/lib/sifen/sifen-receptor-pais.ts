@@ -139,6 +139,28 @@ export function assertCoherenciaTiOpePais(tiOpe: number, codigoPaisIso3: string)
   }
 }
 
+/**
+ * Coherencia SIFEN entre naturaleza del receptor (iNatRec / D201) y tipo de operación (iTiOpe / D011):
+ * - iNatRec = 1 (contribuyente) ⇔ iTiOpe ∈ {1 B2B, 3 B2G}
+ * - iNatRec = 2 (no contribuyente) ⇔ iTiOpe ∈ {2 B2C, 4 B2F}
+ * Falla antes de generar XML para evitar rechazo SET "El tipo de operación no compatible con la naturaleza del receptor".
+ */
+export function assertCoherenciaTiOpeNaturaleza(iNatRec: number, tiOpe: number): void {
+  if (iNatRec === 1) {
+    if (tiOpe !== 1 && tiOpe !== 3) {
+      throw new Error(
+        "Datos del receptor inválidos: un contribuyente (con RUC) requiere operación B2B o B2G (iTiOpe 1 o 3)."
+      );
+    }
+  } else if (iNatRec === 2) {
+    if (tiOpe !== 2 && tiOpe !== 4) {
+      throw new Error(
+        "Datos del receptor inválidos: un no contribuyente (consumidor final / extranjero) requiere operación B2C o B2F (iTiOpe 2 o 4)."
+      );
+    }
+  }
+}
+
 export function descripcionTipoDocRecepXml(tipo: number, custom: string | null | undefined): string {
   const c = trimStr(custom);
   if (tipo === 9) {
