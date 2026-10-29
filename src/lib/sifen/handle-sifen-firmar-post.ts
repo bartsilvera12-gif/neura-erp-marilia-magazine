@@ -84,7 +84,7 @@ export async function handleSifenFirmarPost(
 
   const { data: cfg, error: errCfg } = await supabase
     .from("empresa_sifen_config")
-    .select("certificado_path, certificado_password_encrypted, ambiente, csc")
+    .select("certificado_path, certificado_password_encrypted, ambiente, csc, id_csc")
     .eq("empresa_id", auth.empresa_id)
     .maybeSingle();
 
@@ -177,10 +177,16 @@ export async function handleSifenFirmarPost(
 
   let signedXml: string;
   try {
+    // IdCSC: prioridad DB -> env var -> default. La columna cfg.id_csc permite
+    // cambiarlo desde la UI sin tocar la infra; si queda null, cae al env.
+    const idCscCfg = (() => {
+      const raw = cfg.id_csc == null ? "" : String(cfg.id_csc).replace(/\D/g, "");
+      return raw ? raw.padStart(4, "0").slice(-4) : undefined;
+    })();
     signedXml = signSifenDocumentoXml(xmlDl.data.toString("utf8"), material, {
       ambiente,
       csc: cscParaQr,
-      idCsc: idCscDesdeEnv(),
+      idCsc: idCscCfg ?? idCscDesdeEnv(),
     });
   } catch (e) {
     const m = e instanceof Error ? e.message : "Error al firmar el XML";
