@@ -903,9 +903,24 @@ export function FacturaElectronicaPanel({
                 ) : null}
               </p>
             )}
-            {fe && estado === "aprobado" && resumen.cancelacion && (
+            {fe && estado === "aprobado" && (
               <div className="flex flex-wrap gap-2 pt-2">
-                {resumen.cancelacion.puede_cancelar ? (
+                {/* KuDE: PDF oficial SIFEN. Abre en pestaña nueva (y la pestaña dispara el dialogo de impresion del navegador). */}
+                <a
+                  href={`/api/facturas/${facturaId}/sifen/kude`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="px-3 py-2 text-xs font-semibold rounded-lg bg-slate-900 text-white hover:bg-black"
+                >
+                  Imprimir KuDE
+                </a>
+                <a
+                  href={`/api/facturas/${facturaId}/sifen/kude?download=1`}
+                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-slate-300 text-slate-800 hover:bg-slate-50"
+                >
+                  Descargar PDF
+                </a>
+                {resumen.cancelacion?.puede_cancelar ? (
                   <>
                     <button
                       type="button"
