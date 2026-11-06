@@ -30,7 +30,9 @@ const CONTENT_TYPE = "application/xml; charset=utf-8";
 /** Mismo margen que rde-xml: evita 1004 "fecha de firma adelantada" si el host va unos segundos por delante. */
 const SIFEN_FIRMA_SKEW_MS = 120_000;
 
-const XPATH_REVE = "/*[local-name(.)='rGesEve']/*[local-name(.)='rEve']";
+const XPATH_REVE = "//*[local-name(.)='rEve']";
+const XSI_NS = "http://www.w3.org/2001/XMLSchema-instance";
+const EVENTO_SCHEMA_LOCATION = `${SIFEN_EKUATIA_TARGET_NS} siRecepEvento_v150.xsd`;
 const TRANSFORMS = [
   "http://www.w3.org/2000/09/xmldsig#enveloped-signature",
   "http://www.w3.org/2001/10/xml-exc-c14n#",
@@ -96,7 +98,11 @@ function dFecFirmaPy(ahora: Date): string {
   return `${ymd}T${pick("hour")}:${pick("minute")}:${pick("second")}`;
 }
 
-/** rGesEve > rEve (sin firmar). El xmlns va en rGesEve para que la firma sea autoconsistente al embeberlo. */
+/**
+ * gGroupGesEve > rGesEve > rEve (sin firmar), según el esquema siRecepEvento_v150.
+ * El xmlns por defecto va en gGroupGesEve para que la firma de `rEve` (exclusive c14n)
+ * sea autoconsistente al embeberlo bajo rEnviEventoDe.
+ */
 export function buildRGesEveCancelacionUnsigned(opts: {
   cdc: string;
   motivo: string;
@@ -104,7 +110,8 @@ export function buildRGesEveCancelacionUnsigned(opts: {
   dFecFirma: string;
 }): string {
   return (
-    `<rGesEve xmlns="${SIFEN_NS}">` +
+    `<gGroupGesEve xmlns="${SIFEN_NS}" xmlns:xsi="${XSI_NS}" xsi:schemaLocation="${escapeXml(EVENTO_SCHEMA_LOCATION)}">` +
+    `<rGesEve>` +
     `<rEve Id="${opts.idEvento}">` +
     `<dFecFirma>${opts.dFecFirma}</dFecFirma>` +
     `<dVerFor>150</dVerFor>` +
@@ -115,7 +122,8 @@ export function buildRGesEveCancelacionUnsigned(opts: {
     `</rGeVeCan>` +
     `</gGroupTiEvt>` +
     `</rEve>` +
-    `</rGesEve>`
+    `</rGesEve>` +
+    `</gGroupGesEve>`
   );
 }
 
@@ -254,7 +262,8 @@ export async function enviarEventoCancelacionSifen(
   }
 
   const dId = params.dId ?? generarIdNumerico();
-  const idEvento = params.idEvento ?? generarIdNumerico();
+  // La referencia SIFEN usa Id="1" fijo para el evento; el Signature lo referencia por ese Id.
+  const idEvento = params.idEvento ?? 1;
   const dFecFirma = dFecFirmaPy(new Date());
 
   const unsigned = buildRGesEveCancelacionUnsigned({ cdc, motivo, idEvento, dFecFirma });
